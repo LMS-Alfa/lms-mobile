@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native'
+import { StackNavigationProp } from '@react-navigation/stack'
 import React, { useEffect, useState } from 'react'
 import {
 	ActivityIndicator,
@@ -11,18 +12,22 @@ import {
 } from 'react-native'
 import Icon from 'react-native-vector-icons/Feather'
 import { Assignment, getStudentAssignments } from '../../services/assignmentService'
+import { GradeItem, getStudentGrades } from '../../services/gradesService'
 import { useAuthStore } from '../../store/authStore'
+
+// Define the type for the navigation stack
+type StudentStackParamList = {
+	AssignmentDetail: { assignmentId: number }
+	Grades: undefined
+	Schedule: undefined
+	Announcements: undefined
+}
 
 // Mock data - will be replaced with API calls
 const mockUpcomingAssignments = [
 	{ id: 1, title: 'Math Assignment', dueDate: '2023-05-25', subject: 'Mathematics' },
 	{ id: 2, title: 'Physics Lab Report', dueDate: '2023-05-26', subject: 'Physics' },
 	{ id: 3, title: 'History Essay', dueDate: '2023-05-28', subject: 'History' },
-]
-
-const mockRecentGrades = [
-	{ id: 1, title: 'Calculus Test', grade: 'A', date: '2023-05-20', subject: 'Mathematics' },
-	{ id: 2, title: 'Chemistry Quiz', grade: 'B+', date: '2023-05-18', subject: 'Chemistry' },
 ]
 
 const mockSchedule = [
@@ -50,8 +55,11 @@ const StudentDashboardScreen = () => {
 	const [refreshing, setRefreshing] = useState(false)
 	const [loading, setLoading] = useState(true)
 	const [assignments, setAssignments] = useState<Assignment[]>([])
+	const [recentGrades, setRecentGrades] = useState<GradeItem[]>([])
+	const [gradesLoading, setGradesLoading] = useState(true)
+	const [gradesError, setGradesError] = useState<string | null>(null)
 	const [error, setError] = useState<string | null>(null)
-	const navigation = useNavigation()
+	const navigation = useNavigation<StackNavigationProp<StudentStackParamList>>()
 	const { user } = useAuthStore()
 
 	const fetchAssignments = async () => {
@@ -71,13 +79,49 @@ const StudentDashboardScreen = () => {
 		}
 	}
 
+	const fetchGrades = async () => {
+		try {
+			if (!user?.id) return
+			setGradesLoading(true)
+			// Fetch all subject grades for the student
+			const subjectGrades = await getStudentGrades(user.id)
+
+			// Extract all grade items from all subjects
+			const allGrades: GradeItem[] = []
+			subjectGrades.forEach(subject => {
+				if (subject.grades && subject.grades.length > 0) {
+					// Add subject name to each grade item for display
+					const gradesWithSubject = subject.grades.map(grade => ({
+						...grade,
+						subjectName: subject.subjectName,
+					}))
+					allGrades.push(...gradesWithSubject)
+				}
+			})
+
+			// Sort grades by score (higher scores first) and take only the top 3
+			const sortedGrades = allGrades
+				.filter(grade => grade.score !== null) // Filter out grades without scores
+				.sort((a, b) => (b.score || 0) - (a.score || 0))
+				.slice(0, 3)
+
+			setRecentGrades(sortedGrades)
+			setGradesError(null)
+		} catch (err) {
+			console.error('Error fetching grades:', err)
+			setGradesError('Failed to load grades')
+		} finally {
+			setGradesLoading(false)
+		}
+	}
+
 	useEffect(() => {
-		fetchAssignments().finally(() => setLoading(false))
+		Promise.all([fetchAssignments(), fetchGrades()]).finally(() => setLoading(false))
 	}, [user?.id])
 
 	const onRefresh = React.useCallback(async () => {
 		setRefreshing(true)
-		await fetchAssignments()
+		await Promise.all([fetchAssignments(), fetchGrades()])
 		setRefreshing(false)
 	}, [user?.id])
 
@@ -157,7 +201,7 @@ const StudentDashboardScreen = () => {
 			<View style={styles.sectionContainer}>
 				<View style={styles.sectionHeader}>
 					<Text style={styles.sectionTitle}>Upcoming Assignments</Text>
-					<TouchableOpacity onPress={() => navigation.navigate('Assignments' as never)}>
+					<TouchableOpacity onPress={() => navigation.navigate('Assignments')}>
 						<Text style={styles.seeAllText}>See all</Text>
 					</TouchableOpacity>
 				</View>
@@ -172,10 +216,7 @@ const StudentDashboardScreen = () => {
 							key={assignment.id}
 							style={styles.assignmentItem}
 							onPress={() =>
-								navigation.navigate(
-									'AssignmentDetail' as never,
-									{ assignmentId: assignment.id } as never
-								)
+								navigation.navigate('AssignmentDetail', { assignmentId: assignment.id })
 							}
 						>
 							<View style={styles.assignmentContent}>
@@ -217,46 +258,59 @@ const StudentDashboardScreen = () => {
 			<View style={styles.sectionContainer}>
 				<View style={styles.sectionHeader}>
 					<Text style={styles.sectionTitle}>Recent Grades</Text>
-					<TouchableOpacity onPress={() => navigation.navigate('Grades' as never)}>
+					<TouchableOpacity onPress={() => navigation.navigate('Grades')}>
 						<Text style={styles.seeAllText}>See all</Text>
 					</TouchableOpacity>
 				</View>
 
-				{mockRecentGrades.map(grade => (
-					<TouchableOpacity
-						key={grade.id}
-						style={styles.gradeItem}
-						onPress={() => navigation.navigate('Grades' as never)}
-					>
-						<View style={styles.gradeContent}>
-							<Text style={styles.gradeTitle}>{grade.title}</Text>
-							<Text style={styles.gradeSubject}>{grade.subject}</Text>
-						</View>
-						<View style={styles.gradeValue}>
-							<Text
-								style={[
-									styles.gradeText,
-									grade.grade.startsWith('A')
-										? styles.gradeA
-										: grade.grade.startsWith('B')
-										? styles.gradeB
-										: grade.grade.startsWith('C')
-										? styles.gradeC
-										: styles.gradeOther,
-								]}
-							>
-								{grade.grade}
-							</Text>
-						</View>
-					</TouchableOpacity>
-				))}
+				{gradesLoading ? (
+					<View style={styles.loadingIndicator}>
+						<ActivityIndicator size='small' color='#4A90E2' />
+						<Text style={styles.loadingGradesText}>Loading grades...</Text>
+					</View>
+				) : gradesError ? (
+					<Text style={styles.errorText}>{gradesError}</Text>
+				) : recentGrades.length === 0 ? (
+					<Text style={styles.noAssignmentsText}>No grades available</Text>
+				) : (
+					recentGrades.map(grade => (
+						<TouchableOpacity
+							key={grade.id}
+							style={styles.gradeItem}
+							onPress={() => navigation.navigate('Grades')}
+						>
+							<View style={styles.gradeContent}>
+								<Text style={styles.gradeTitle}>{grade.title}</Text>
+								<Text style={styles.gradeSubject}>
+									{(grade as any).subjectName || 'No subject'}
+								</Text>
+							</View>
+							<View style={styles.gradeValue}>
+								<Text
+									style={[
+										styles.gradeText,
+										grade.grade.startsWith('A')
+											? styles.gradeA
+											: grade.grade.startsWith('B')
+											? styles.gradeB
+											: grade.grade.startsWith('C')
+											? styles.gradeC
+											: styles.gradeOther,
+									]}
+								>
+									{grade.grade}
+								</Text>
+							</View>
+						</TouchableOpacity>
+					))
+				)}
 			</View>
 
 			{/* Today's Schedule */}
 			<View style={styles.sectionContainer}>
 				<View style={styles.sectionHeader}>
 					<Text style={styles.sectionTitle}>Today's Schedule</Text>
-					<TouchableOpacity onPress={() => navigation.navigate('Schedule' as never)}>
+					<TouchableOpacity onPress={() => navigation.navigate('Schedule')}>
 						<Text style={styles.seeAllText}>Full schedule</Text>
 					</TouchableOpacity>
 				</View>
@@ -265,7 +319,7 @@ const StudentDashboardScreen = () => {
 					<TouchableOpacity
 						key={classItem.id}
 						style={styles.scheduleItem}
-						onPress={() => navigation.navigate('Schedule' as never)}
+						onPress={() => navigation.navigate('Schedule')}
 					>
 						<View style={styles.scheduleTimeContainer}>
 							<Text style={styles.scheduleTime}>{classItem.time}</Text>
@@ -282,7 +336,7 @@ const StudentDashboardScreen = () => {
 			<View style={styles.sectionContainer}>
 				<View style={styles.sectionHeader}>
 					<Text style={styles.sectionTitle}>Announcements</Text>
-					<TouchableOpacity onPress={() => navigation.navigate('Announcements' as never)}>
+					<TouchableOpacity onPress={() => navigation.navigate('Announcements')}>
 						<Text style={styles.seeAllText}>See all</Text>
 					</TouchableOpacity>
 				</View>
@@ -291,7 +345,7 @@ const StudentDashboardScreen = () => {
 					<TouchableOpacity
 						key={announcement.id}
 						style={styles.announcementItem}
-						onPress={() => navigation.navigate('Announcements' as never)}
+						onPress={() => navigation.navigate('Announcements')}
 					>
 						<View style={styles.announcementHeader}>
 							<Text style={styles.announcementTitle}>{announcement.title}</Text>
@@ -555,6 +609,17 @@ const styles = StyleSheet.create({
 	},
 	overdueDateText: {
 		color: '#FF4B4B',
+	},
+	loadingIndicator: {
+		flexDirection: 'row',
+		justifyContent: 'center',
+		alignItems: 'center',
+		padding: 10,
+	},
+	loadingGradesText: {
+		marginLeft: 10,
+		color: '#666',
+		fontSize: 14,
 	},
 })
 
