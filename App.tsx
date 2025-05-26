@@ -4,9 +4,8 @@ import './src/utils/polyfills';
 
 import React, { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from 'styled-components/native';
+import { AppThemeProvider } from './src/contexts/ThemeContext';
 import { StatusBar } from 'expo-status-bar';
-import { lightTheme } from './src/styles/theme';
 import RootNavigator from './src/navigators/RootNavigator';
 import { LogBox, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { initializeRoles } from './src/utils/supabase';
@@ -80,10 +79,10 @@ export default function App() {
   try {
     return (
       <SafeAreaProvider>
-        <ThemeProvider theme={lightTheme}>
+        <AppThemeProvider>
           <StatusBar style="auto" />
           <RootNavigator />
-        </ThemeProvider>
+        </AppThemeProvider>
       </SafeAreaProvider>
     );
   } catch (error) {

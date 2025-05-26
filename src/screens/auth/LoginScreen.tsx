@@ -12,22 +12,13 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
-import { useTheme, DefaultTheme } from 'styled-components/native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const LoginScreen = () => {
-  const theme = useTheme() as DefaultTheme & {
-    primary?: string;
-    text?: string;
-    textSecondary?: string;
-    background?: string;
-    cardBackground?: string;
-    inputBackground?: string;
-    lightBorder?: string;
-    placeholder?: string;
-    danger?: string;
-  };
+  const { theme } = useAppTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,121 +51,126 @@ const LoginScreen = () => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.inner}>
-          <View style={styles.logoContainer}>
-            <Text style={[styles.appName, { color: theme.text }]}>
-              LMS Mobile
-            </Text>
-          </View>
-
-          <View style={[styles.formContainer, { backgroundColor: theme.cardBackground, borderColor: theme.lightBorder }]}>
-            <Text style={[styles.title, { color: theme.text }]}>Welcome Back</Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Sign in to continue
-            </Text>
-
-            {error && (
-              <View style={[styles.errorContainer, { backgroundColor: theme.danger + '15' }]}>
-                <Icon name="alert-circle" size={18} color={theme.danger} style={styles.errorIcon} />
-                <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
-              </View>
-            )}
-
-            <View style={styles.inputContainer}>
-              <View style={styles.inputLabel}>
-                <Icon name="mail" size={16} color={theme.textSecondary} style={styles.inputIcon} />
-                <Text style={[styles.inputLabelText, { color: theme.textSecondary }]}>Email</Text>
-              </View>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.inputBackground,
-                    borderColor: theme.lightBorder,
-                    color: theme.text,
-                  },
-                ]}
-                placeholder="Enter your email"
-                placeholderTextColor={theme.placeholder || theme.textSecondary + '80'}
-                value={email}
-                onChangeText={handleEmailChange}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!loading}
-              />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.container, { backgroundColor: theme.background }]}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.inner}>
+            <View style={styles.logoContainer}>
+              <Text style={[styles.appName, { color: theme.text }]}>
+                LMS Mobile
+              </Text>
             </View>
 
-            <View style={styles.inputContainer}>
-              <View style={styles.inputLabel}>
-                <Icon name="lock" size={16} color={theme.textSecondary} style={styles.inputIcon} />
-                <Text style={[styles.inputLabelText, { color: theme.textSecondary }]}>Password</Text>
-              </View>
-              <View style={[
-                styles.passwordContainer,
-                {
-                  backgroundColor: theme.inputBackground,
-                  borderColor: theme.lightBorder,
-                },
-              ]}>
+            <View style={[styles.formContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+              <Text style={[styles.title, { color: theme.text }]}>Welcome Back</Text>
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                Sign in to continue
+              </Text>
+
+              {error && (
+                <View style={[styles.errorContainer, { backgroundColor: theme.danger + '15' }]}>
+                  <Icon name="alert-circle" size={18} color={theme.danger} style={styles.errorIcon} />
+                  <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
+                </View>
+              )}
+
+              <View style={styles.inputContainer}>
+                <View style={styles.inputLabel}>
+                  <Icon name="mail" size={16} color={theme.textSecondary} style={styles.inputIcon} />
+                  <Text style={[styles.inputLabelText, { color: theme.textSecondary }]}>Email</Text>
+                </View>
                 <TextInput
-                  style={[styles.passwordInput, { color: theme.text }]}
-                  placeholder="Enter your password"
-                  placeholderTextColor={theme.placeholder || theme.textSecondary + '80'}
-                  value={password}
-                  onChangeText={handlePasswordChange}
-                  secureTextEntry={secureTextEntry}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.inputBackground,
+                      borderColor: theme.border,
+                      color: theme.text,
+                    },
+                  ]}
+                  placeholder="Enter your email"
+                  placeholderTextColor={theme.placeholder}
+                  value={email}
+                  onChangeText={handleEmailChange}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                   editable={!loading}
                 />
-                <TouchableOpacity onPress={toggleSecureEntry} style={styles.eyeButton}>
-                  <Icon
-                    name={secureTextEntry ? 'eye' : 'eye-off'}
-                    size={20}
-                    color={theme.textSecondary}
-                  />
-                </TouchableOpacity>
               </View>
+
+              <View style={styles.inputContainer}>
+                <View style={styles.inputLabel}>
+                  <Icon name="lock" size={16} color={theme.textSecondary} style={styles.inputIcon} />
+                  <Text style={[styles.inputLabelText, { color: theme.textSecondary }]}>Password</Text>
+                </View>
+                <View style={[
+                  styles.passwordContainer,
+                  {
+                    backgroundColor: theme.inputBackground,
+                    borderColor: theme.border,
+                  },
+                ]}>
+                  <TextInput
+                    style={[styles.passwordInput, { color: theme.text }]}
+                    placeholder="Enter your password"
+                    placeholderTextColor={theme.placeholder}
+                    value={password}
+                    onChangeText={handlePasswordChange}
+                    secureTextEntry={secureTextEntry}
+                    editable={!loading}
+                  />
+                  <TouchableOpacity onPress={toggleSecureEntry} style={styles.eyeButton}>
+                    <Icon
+                      name={secureTextEntry ? 'eye' : 'eye-off'}
+                      size={20}
+                      color={theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.loginButton,
+                  { backgroundColor: theme.primary },
+                  loading && { opacity: 0.7 },
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Login</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.forgotPasswordContainer}>
+                <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>
+                  Forgot Password?
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                { backgroundColor: theme.primary },
-                loading && { opacity: 0.7 },
-              ]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.forgotPasswordContainer}>
-              <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>
-                Forgot Password?
+            <View style={styles.footer}>
+              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+                © 2023 LMS Mobile App
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
-
-          <View style={styles.footer}>
-            <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-              © 2023 LMS Mobile App
-            </Text>
-          </View>
-        </View>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },

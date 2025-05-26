@@ -7,15 +7,19 @@ import LessonDetailScreen from '../screens/student/LessonDetailScreen';
 import AssignmentDetailScreen from '../screens/student/AssignmentDetailScreen';
 import SubjectGradesScreen from '../screens/student/SubjectGradesScreen';
 import SettingsScreen from '@/screens/student/SettingsScreen';
+import ChangePasswordScreen from '@/screens/student/ChangePasswordScreen';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 const Stack = createStackNavigator();
 
 const StudentNavigator = () => {
+  const { theme } = useAppTheme();
+
   return (
     <Stack.Navigator 
       screenOptions={{ 
         headerShown: false,
-        cardStyle: { backgroundColor: '#F5F7FA' },
+        cardStyle: { backgroundColor: theme.background },
         headerTitleStyle: {
           fontWeight: 'bold',
           fontSize: 18,
@@ -24,7 +28,7 @@ const StudentNavigator = () => {
           elevation: 0, // Remove shadow on Android
           shadowOpacity: 0, // Remove shadow on iOS
           borderBottomWidth: 0, // Remove the bottom border
-          backgroundColor: '#4A90E2',
+          backgroundColor: theme.primary,
         },
         headerTintColor: '#FFFFFF',
       }}
@@ -79,6 +83,19 @@ const StudentNavigator = () => {
         options={{
           headerShown: true,
           title: 'Settings',
+          ...Platform.select({
+            ios: {
+              headerBackTitle: 'Back',
+            },
+          }),
+        }}
+      />
+      <Stack.Screen 
+        name="ChangePassword" 
+        component={ChangePasswordScreen}
+        options={{
+          headerShown: true,
+          title: 'Change Password',
           ...Platform.select({
             ios: {
               headerBackTitle: 'Back',

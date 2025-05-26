@@ -1,39 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, FlatList, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, FlatList, TouchableOpacity } from 'react-native';
 import { RouteProp, useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { fetchChildTimetable, fetchParentChildrenList, ParentChildListItem } from '../../services/parentSupabaseService'; 
 import { ParentHomeStackParamList } from '../../navigators/ParentTabNavigator';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { useAuthStore } from '../../store/authStore';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Mock theme (remains the same)
-const mockTheme = {
-  colors: {
-    background: '#F0F4F8', // Light grey-blue background
-    text: '#2C3E50', // Darker, more saturated text color
-    textSecondary: '#7F8C8D', // Softer grey for secondary text
-    primary: '#3498DB', // Brighter, more modern blue
-    error: '#E74C3C', // Softer red for errors
-    cardBackground: '#FFFFFF',
-    borderColor: '#BDC3C7', // Softer grey for borders
-    headerRow: '#ECF0F1', // Lighter header row
-    evenRow: '#FFFFFF',
-    oddRow: '#F8F9FA', // Very light grey for odd rows
-    buttonBackground: '#3498DB', // Consistent with primary
-    buttonText: '#FFFFFF',
-    listItemHover: '#E9ECEF', // Kept for consistency if used elsewhere
-    dayChipActive: '#3498DB', // Consistent with primary
-    dayChipInactive: '#E0E0E0',
-    dayChipTextActive: '#FFFFFF',
-    dayChipTextInactive: '#333333',
-    timetableItemBorder: '#DAE4E5', // Light border for items
-  },
-  spacing: { small: 8, medium: 16, large: 24, extraSmall: 4, cardPadding: 12, itemPadding: 10 },
-  fontSize: { small: 12, medium: 14, large: 16, xlarge: 22, button: 16, item: 16, dayHeader: 18 }, // Adjusted xlarge and added dayHeader
-  borderRadius: { small: 4, medium: 8, large: 12, chip: 20 } // Added border radius values
-};
-
+// Define timetable entry interface
 export interface TimetableEntry {
   id: string; 
   dayOfWeek: string; 
@@ -56,9 +32,7 @@ const ParentScheduleScreen: React.FC = () => {
   const route = useRoute<ParentScheduleScreenRouteProp>();
   const navigation = useNavigation<NavigationProps>();
   const { user } = useAuthStore();
-
-  const theme = mockTheme;
-  const styles = makeStyles(theme);
+  const { theme } = useAppTheme();
 
   // Attempt to get childId and childName from route params if available
   const initialChildId = route.params?.childId;
@@ -175,21 +149,27 @@ const ParentScheduleScreen: React.FC = () => {
   }, {} as Record<string, TimetableEntry[]>);
 
   const renderItem = ({ item }: { item: TimetableEntry }) => (
-    <View style={[styles.timetableItem, { borderLeftColor: item.color || theme.colors.primary }]}>
+    <View style={[
+      styles.timetableItem, 
+      { 
+        borderLeftColor: item.color || theme.primary,
+        backgroundColor: theme.cardBackground
+      }
+    ]}>
       <View style={styles.itemTiming}>
-        <MaterialCommunityIcons name="clock-outline" size={16} color={theme.colors.textSecondary} style={styles.itemIcon} />
-        <Text style={styles.itemTimeText}>{item.startTime} - {item.endTime}</Text>
+        <MaterialCommunityIcons name="clock-outline" size={16} color={theme.textSecondary} style={styles.itemIcon} />
+        <Text style={[styles.itemTimeText, { color: theme.text }]}>{item.startTime} - {item.endTime}</Text>
       </View>
-      <Text style={styles.itemSubjectText}>{item.subjectName}</Text>
+      <Text style={[styles.itemSubjectText, { color: theme.text }]}>{item.subjectName}</Text>
       {item.teacherName && item.teacherName !== 'N/A' && (
         <View style={styles.itemDetailRow}>
-          <MaterialCommunityIcons name="teach" size={16} color={theme.colors.textSecondary} style={styles.itemIcon} />
-          <Text style={styles.itemDetailText}>{item.teacherName}</Text>
+          <MaterialCommunityIcons name="teach" size={16} color={theme.textSecondary} style={styles.itemIcon} />
+          <Text style={[styles.itemDetailText, { color: theme.textSecondary }]}>{item.teacherName}</Text>
         </View>
       )}
       <View style={styles.itemDetailRow}>
-        <MaterialCommunityIcons name="map-marker-outline" size={16} color={theme.colors.textSecondary} style={styles.itemIcon} />
-        <Text style={styles.itemDetailText}>{item.room || 'N/A'}</Text>
+        <MaterialCommunityIcons name="map-marker-outline" size={16} color={theme.textSecondary} style={styles.itemIcon} />
+        <Text style={[styles.itemDetailText, { color: theme.textSecondary }]}>{item.room || 'N/A'}</Text>
       </View>
     </View>
   );
@@ -199,308 +179,262 @@ const ParentScheduleScreen: React.FC = () => {
       key={day}
       style={[
         styles.dayChip,
-        activeDayFilter === day ? styles.dayChipActive : styles.dayChipInactive,
+        {
+          backgroundColor: activeDayFilter === day ? theme.primary : theme.cardBackground,
+          borderColor: theme.border
+        }
       ]}
-      onPress={() => setActiveDayFilter(prev => prev === day ? null : day)} 
+      onPress={() => setActiveDayFilter(activeDayFilter === day ? null : day)}
     >
-      <Text style={activeDayFilter === day ? styles.dayChipTextActive : styles.dayChipTextInactive}>
-        {day.substring(0,3)} 
+      <Text
+        style={[
+          styles.dayChipText,
+          { color: activeDayFilter === day ? '#FFFFFF' : theme.text }
+        ]}
+      >
+        {day.substring(0, 3)}
       </Text>
     </TouchableOpacity>
   );
 
-  const DAYS_ORDER = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-  if (loadingChildren) {
-    return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><ActivityIndicator size="large" color={theme.colors.primary} /><Text style={styles.loadingText}>Loading children...</Text></View></SafeAreaView>;
-  }
+  const renderTimetableForDay = (day: string, entries: TimetableEntry[]) => (
+    <View key={day} style={styles.daySection}>
+      <Text style={[styles.daySectionHeader, { color: theme.text }]}>{day}</Text>
+      {entries.map(entry => renderItem({ item: entry }))}
+    </View>
+  );
 
-  if (!selectedChildId && childrenList.length > 1 && !loading) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.containerPadded}>
-          <Text style={styles.headerTitle}>Select Child's Schedule</Text>
-          <Text style={styles.messageText}>{error || 'Please choose a child to view their timetable.'}</Text>
-          <FlatList
-            data={childrenList}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.childSelectItem} onPress={() => handleChildSelection(item)}>
-                <MaterialCommunityIcons name="account-child-outline" size={24} color={theme.colors.primary} style={styles.childIcon} />
-                <Text style={styles.childSelectText}>{item.fullName}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
-  
-  if (loading) { 
-    return <SafeAreaView style={styles.safeArea}><View style={styles.centered}><ActivityIndicator size="large" color={theme.colors.primary} /><Text style={styles.loadingText}>Loading schedule...</Text></View></SafeAreaView>;
-  }
-  
-  if (error) { 
-     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centeredContainerWithMessage}>
-          <Text style={styles.headerTitle}>Schedule</Text>
-          <MaterialCommunityIcons name="alert-circle-outline" size={48} color={theme.colors.error} style={{marginBottom: theme.spacing.medium}}/>
-          <Text style={styles.messageText}>{error}</Text>
-          <TouchableOpacity style={styles.button} onPress={() => loadData(selectedChildId)}> 
-            <Text style={styles.buttonText}>Retry</Text>
+  const renderChildSelector = () => (
+    <View style={styles.childSelector}>
+      <Text style={[styles.selectorLabel, { color: theme.textSecondary }]}>Select Child:</Text>
+      <FlatList
+        data={childrenList}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[
+              styles.childChip,
+              { 
+                backgroundColor: selectedChildId === item.id ? theme.primary : theme.cardBackground,
+                borderColor: theme.border
+              }
+            ]}
+            onPress={() => handleChildSelection(item)}
+          >
+            <Text
+              style={[
+                styles.childChipText,
+                { color: selectedChildId === item.id ? '#FFFFFF' : theme.text }
+              ]}
+            >
+              {item.fullName}
+            </Text>
           </TouchableOpacity>
+        )}
+      />
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.centeredContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading schedule...</Text>
         </View>
       </SafeAreaView>
     );
   }
-  
-  if (!selectedChildId) { 
+
+  if (error && (!childrenList.length || !selectedChildId)) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.centeredContainerWithMessage}>
-          <Text style={styles.headerTitle}>Schedule</Text>
-          <MaterialCommunityIcons name="calendar-alert" size={48} color={theme.colors.textSecondary} style={{marginBottom: theme.spacing.medium}}/>
-          <Text style={styles.messageText}>No child selected and no children found for your account.</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.centeredContainer, { backgroundColor: theme.background }]}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={50} color={theme.danger} />
+          <Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+          {childrenList.length > 0 && renderChildSelector()}
         </View>
       </SafeAreaView>
-    )
+    );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.headerBar}>
-        <Text style={styles.headerTitleMain}>Schedule for {selectedChildName || 'Child'}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayChipsContainer}>
-            {DAYS_ORDER.map(renderDayChip)}
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.primary} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          {selectedChildName ? `${selectedChildName}'s Schedule` : 'Schedule'}
+        </Text>
+      </View>
+
+      <View style={styles.content}>
+        {childrenList.length > 1 && renderChildSelector()}
+
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {days.map(day => renderDayChip(day))}
+          </ScrollView>
+        </View>
+
+        <ScrollView style={styles.scrollView}>
+          {Object.keys(groupedTimetable).length > 0 ? (
+            Object.entries(groupedTimetable).map(([day, entries]) => 
+              renderTimetableForDay(day, entries)
+            )
+          ) : (
+            <View style={styles.noScheduleContainer}>
+              <MaterialCommunityIcons name="calendar-blank" size={50} color={theme.textSecondary} />
+              <Text style={[styles.noScheduleText, { color: theme.textSecondary }]}>
+                {activeDayFilter 
+                  ? `No classes scheduled for ${activeDayFilter}` 
+                  : 'No classes scheduled'}
+              </Text>
+            </View>
+          )}
+          <View style={{ height: 30 }} />
         </ScrollView>
       </View>
-      <ScrollView style={styles.containerScrollView}>
-        {(activeDayFilter ? DAYS_ORDER.filter(d => d === activeDayFilter) : DAYS_ORDER).map(day => {
-          const lessonsForDay = groupedTimetable[day];
-          if (lessonsForDay && lessonsForDay.length > 0) {
-            return (
-              <View key={day} style={styles.daySection}>
-                <Text style={styles.dayHeaderText}>{day}</Text>
-                <FlatList
-                  data={lessonsForDay.sort((a,b) => a.startTime.localeCompare(b.startTime))}
-                  renderItem={renderItem}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false} 
-                  ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-                />
-              </View>
-            );
-          } else if (activeDayFilter === day) { 
-             return (
-                <View key={day} style={styles.daySectionEmpty}>
-                    <View style={styles.centeredContent}>
-                        <MaterialCommunityIcons name="calendar-check-outline" size={48} color={theme.colors.textSecondary} />
-                        <Text style={styles.noLessonsText}>No lessons scheduled for {day}.</Text>
-                    </View>
-                </View>
-            );
-          }
-          return null;
-        })}
-      </ScrollView>
     </SafeAreaView>
   );
 };
 
-const makeStyles = (theme: typeof mockTheme) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: theme.colors.background },
-  containerScrollView: { flex: 1 }, // Removed horizontal padding, will apply to day sections
-  containerPadded: { flex: 1, backgroundColor: theme.colors.background, padding: theme.spacing.medium },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: theme.spacing.medium },
-  loadingText: { marginTop: theme.spacing.small, fontSize: theme.fontSize.medium, color: theme.colors.textSecondary },
-  centeredContainerWithMessage: {
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  centeredContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.large,
-    backgroundColor: theme.colors.background,
+    padding: 20,
   },
-  messageText: {
-    fontSize: theme.fontSize.medium,
-    color: theme.colors.textSecondary,
+  loadingText: {
+    fontSize: 16,
+    marginTop: 12,
+  },
+  errorText: {
+    fontSize: 16,
     textAlign: 'center',
-    marginBottom: theme.spacing.medium, 
+    marginVertical: 16,
   },
-  button: {
-    backgroundColor: theme.colors.buttonBackground,
-    paddingVertical: theme.spacing.medium,
-    paddingHorizontal: theme.spacing.large,
-    borderRadius: theme.borderRadius.medium,
-    marginTop: theme.spacing.small, 
-  },
-  buttonText: {
-    color: theme.colors.buttonText,
-    fontSize: theme.fontSize.button,
-    fontWeight: '600',
-  },
-  centeredContent: { paddingVertical: theme.spacing.large, alignItems: 'center', justifyContent: 'center', minHeight: 150 },
-  noLessonsText: { marginTop: theme.spacing.medium, fontSize: theme.fontSize.medium, color: theme.colors.textSecondary, textAlign: 'center' },
-  
-  headerBar: { // Container for title and day chips, with some elevation/shadow
-    paddingTop: theme.spacing.medium,
-    paddingHorizontal: theme.spacing.medium,
-    backgroundColor: theme.colors.cardBackground, // Give it a background to lift it
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderColor,
-    // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    // Elevation for Android
-    elevation: 3,
   },
-  headerTitleMain: { 
-    fontSize: theme.fontSize.xlarge, 
-    fontWeight: 'bold', 
-    color: theme.colors.text, 
-    textAlign: 'center',
-    marginBottom: theme.spacing.medium,
+  backButton: {
+    padding: 8,
   },
-  headerTitle: { // Kept for child selection screen
-    fontSize: theme.fontSize.xlarge, 
-    fontWeight: 'bold', 
-    color: theme.colors.text, 
-    marginTop: theme.spacing.medium, 
-    textAlign: 'center' 
-  }, 
-  dayChipsContainer: {
-    paddingVertical: theme.spacing.medium, // Add vertical padding for better touch area
-    alignItems: 'center', // Center chips if they don't fill width
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  content: {
+    flex: 1,
+  },
+  childSelector: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  selectorLabel: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  childChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+  },
+  childChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   dayChip: {
-    paddingVertical: theme.spacing.small + 2, // Slightly taller chips
-    paddingHorizontal: theme.spacing.medium + 2, // Slightly wider chips
-    borderRadius: theme.borderRadius.chip,
-    marginRight: theme.spacing.small,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
     borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  dayChipActive: {
-    backgroundColor: theme.colors.dayChipActive,
-    borderColor: theme.colors.dayChipActive,
+  dayChipText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
-  dayChipInactive: {
-    backgroundColor: theme.colors.cardBackground, // Use card background for inactive
-    borderColor: theme.colors.borderColor, // Use a subtle border
+  scrollView: {
+    flex: 1,
+    padding: 16,
   },
-  dayChipTextActive: { color: theme.colors.dayChipTextActive, fontWeight: 'bold', fontSize: theme.fontSize.small },
-  dayChipTextInactive: { color: theme.colors.text, fontSize: theme.fontSize.small }, // Darker text for inactive but readable
-  
-  daySection: { 
-    marginBottom: theme.spacing.large, 
-    paddingHorizontal: theme.spacing.medium, // Add horizontal padding here
+  daySection: {
+    marginBottom: 24,
   },
-  daySectionEmpty: { 
-    marginBottom: theme.spacing.large, 
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.medium,
+  daySectionHeader: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
   },
-  dayHeaderText: { // New style for Day headers in the list
-    fontSize: theme.fontSize.dayHeader, 
-    fontWeight: '600', 
-    color: theme.colors.primary, 
-    marginTop: theme.spacing.large, // Add top margin for separation
-    marginBottom: theme.spacing.medium, 
-    paddingBottom: theme.spacing.small, 
-    borderBottomWidth: 2, 
-    borderBottomColor: theme.colors.primary,
-  },
-  
-  // Timetable Item Card Style
   timetableItem: {
-    backgroundColor: theme.colors.cardBackground,
-    borderRadius: theme.borderRadius.medium,
-    padding: theme.spacing.cardPadding,
-    // marginBottom: theme.spacing.medium, // Replaced by ItemSeparatorComponent
-    borderLeftWidth: 5, // For the color indicator
-    borderColor: theme.colors.primary, // Default border color if item.color is not set
-    // Shadow for iOS
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderLeftWidth: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 2,
-    // Elevation for Android
     elevation: 2,
-  },
-  itemSeparator: {
-    height: theme.spacing.medium,
   },
   itemTiming: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.small,
+    marginBottom: 8,
   },
   itemIcon: {
-    marginRight: theme.spacing.small - 2,
+    marginRight: 6,
   },
   itemTimeText: {
-    fontSize: theme.fontSize.small,
-    color: theme.colors.textSecondary,
+    fontSize: 14,
     fontWeight: '500',
   },
   itemSubjectText: {
-    fontSize: theme.fontSize.large,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.small,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
   },
   itemDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.extraSmall,
+    marginTop: 4,
   },
   itemDetailText: {
-    fontSize: theme.fontSize.medium,
-    color: theme.colors.textSecondary,
-    flexShrink: 1, // Allow text to shrink if needed
+    fontSize: 14,
   },
-
-  // Old table styles - can be removed or kept for reference if other tables exist
-  // tableHeader: { flexDirection: 'row', backgroundColor: theme.colors.headerRow, paddingVertical: theme.spacing.small, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
-  // headerCell: { fontWeight: 'bold', color: theme.colors.text, fontSize: theme.fontSize.medium },
-  // row: { flexDirection: 'row', paddingVertical: theme.spacing.small, borderBottomWidth: 1, borderBottomColor: theme.colors.borderColor },
-  // evenRow: { backgroundColor: theme.colors.evenRow },
-  // oddRow: { backgroundColor: theme.colors.oddRow },
-  // cell: { fontSize: theme.fontSize.medium, color: theme.colors.textSecondary, paddingHorizontal: theme.spacing.extraSmall }, 
-  // timeCell: { flex: 2, },
-  // subjectCell: { flex: 3, },
-  // teacherCell: { flex: 2, },
-  // roomCell: { flex: 1.5, textAlign: 'right' }, 
-
-  childSelectItem: {
-    flexDirection: 'row',
+  noScheduleContainer: {
+    padding: 40,
     alignItems: 'center',
-    backgroundColor: theme.colors.cardBackground,
-    padding: theme.spacing.medium,
-    borderRadius: theme.borderRadius.medium,
-    marginBottom: theme.spacing.small,
-    borderWidth: 1,
-    borderColor: theme.colors.borderColor,
-     // Shadow for iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    // Elevation for Android
-    elevation: 1,
+    justifyContent: 'center',
   },
-  childIcon: {
-    marginRight: theme.spacing.medium,
-  },
-  childSelectText: {
-    flex: 1,
-    fontSize: theme.fontSize.item,
-    color: theme.colors.text,
-    fontWeight: '500',
+  noScheduleText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 16,
   },
 });
 
