@@ -99,10 +99,20 @@ const StudentDashboardScreen = () => {
 				}
 			})
 
-			// Sort grades by score (higher scores first) and take only the top 3
+			// Sort grades by date (most recent first), then by score (highest first),
+			// and take only the top 3
 			const sortedGrades = allGrades
 				.filter(grade => grade.score !== null) // Filter out grades without scores
-				.sort((a, b) => (b.score || 0) - (a.score || 0))
+				.sort((a, b) => {
+					// First sort by date (most recent first)
+					const dateA = new Date(a.date).getTime()
+					const dateB = new Date(b.date).getTime()
+					if (dateB !== dateA) {
+						return dateB - dateA
+					}
+					// If dates are the same, sort by score (highest first)
+					return (b.score || 0) - (a.score || 0)
+				})
 				.slice(0, 3)
 
 			setRecentGrades(sortedGrades)
