@@ -112,6 +112,7 @@ const ParentDashboardScreen = () => {
 
 	const navigation = useNavigation<ParentDashboardNavigationProp>()
 	const { user } = useAuthStore()
+	const { theme } = useAppTheme()
 
 	// Get read announcements from AsyncStorage
 	useEffect(() => {
@@ -231,7 +232,10 @@ const ParentDashboardScreen = () => {
 
 	// Render child item
 	const renderChildItem = ({ item }: { item: ChildData }) => (
-		<TouchableOpacity onPress={() => navigateToChildGrades(item)} style={styles.childCard}>
+		<TouchableOpacity 
+			onPress={() => navigateToChildGrades(item)} 
+			style={[styles.childCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+		>
 			<View style={styles.childInfoContainer}>
 				{item.avatar ? (
 					<Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -239,11 +243,11 @@ const ParentDashboardScreen = () => {
 					getChildAvatar(item.firstName, item.lastName)
 				)}
 				<View style={styles.childDetails}>
-					<Text style={styles.childName}>{`${item.firstName} ${item.lastName}`}</Text>
-					{item.className && <Text style={styles.childClass}>{item.className}</Text>}
+					<Text style={[styles.childName, { color: theme.text }]}>{`${item.firstName} ${item.lastName}`}</Text>
+					{item.className && <Text style={[styles.childClass, { color: theme.textSecondary }]}>{item.className}</Text>}
 				</View>
 			</View>
-			<View style={styles.childActionsContainer}>
+			<View style={[styles.childActionsContainer, { borderTopColor: theme.separator }]}>
 				<TouchableOpacity
 					style={[styles.actionButton, styles.gradesButton]}
 					onPress={() => navigateToChildGrades(item)}
@@ -267,7 +271,12 @@ const ParentDashboardScreen = () => {
 		<TouchableOpacity
 			style={[
 				styles.notificationItem,
-				item.read ? styles.notificationRead : styles.notificationUnread,
+				{ 
+					backgroundColor: theme.cardBackground,
+					borderColor: theme.border,
+					shadowColor: theme.text
+				},
+				item.read ? { opacity: 0.8 } : {}
 			]}
 			onPress={() => handleNotificationPress(item)}
 		>
@@ -276,56 +285,60 @@ const ParentDashboardScreen = () => {
 			</View>
 
 			<View style={styles.notificationContent}>
-				<Text style={styles.notificationTitle}>{item.title}</Text>
-				<Text style={styles.notificationMessage} numberOfLines={2}>
+				<Text style={[styles.notificationTitle, { color: theme.text }]}>{item.title}</Text>
+				<Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
 					{item.message}
 				</Text>
-				<Text style={styles.notificationDate}>{formatDate(item.date)}</Text>
+				<Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
 			</View>
 
-			{!item.read && <View style={styles.unreadIndicator} />}
+			{!item.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />}
 		</TouchableOpacity>
 	)
 
 	if (loading) {
 		return (
-			<View style={styles.loadingContainer}>
-				<ActivityIndicator size='large' color='#4A90E2' />
-				<Text style={styles.loadingText}>Loading dashboard...</Text>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+					<ActivityIndicator size='large' color={theme.primary} />
+					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading dashboard...</Text>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	if (error) {
 		return (
-			<View style={styles.errorContainer}>
-				<Icon name='alert-circle' size={50} color='#F44336' />
-				<Text style={styles.errorText}>{error}</Text>
-				<TouchableOpacity style={styles.retryButton} onPress={() => setLoading(true)}>
-					<Text style={styles.retryButtonText}>Retry</Text>
-				</TouchableOpacity>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+					<Icon name='alert-circle' size={50} color={theme.danger} />
+					<Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+					<TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.primary }]} onPress={() => setLoading(true)}>
+						<Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>Retry</Text>
+					</TouchableOpacity>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	const unreadCount = notifications.filter(n => !n.read).length
 
 	return (
-		<View style={styles.container}>
+		<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 			<RealtimeScoreNotifications />
 
-			<ScrollView style={styles.scrollView}>
+			<ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]}>
 				{/* Parent Welcome Header */}
-				<View style={styles.header}>
+				<View style={[styles.header, { backgroundColor: theme.primary }]}>
 					<View>
-						<Text style={styles.headerTitle}>Parent Dashboard</Text>
-						<Text style={styles.headerSubtitle}>Monitor your children's progress</Text>
+						<Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Parent Dashboard</Text>
+						<Text style={[styles.headerSubtitle, { color: 'rgba(255, 255, 255, 0.8)' }]}>Monitor your children's progress</Text>
 					</View>
 				</View>
 
 				{/* Children Section */}
 				<View style={styles.sectionContainer}>
-					<Text style={styles.sectionTitle}>My Children</Text>
+					<Text style={[styles.sectionTitle, { color: theme.text }]}>My Children</Text>
 
 					<FlatList
 						data={children}
@@ -334,7 +347,7 @@ const ParentDashboardScreen = () => {
 						scrollEnabled={false}
 						ListEmptyComponent={() => (
 							<View style={styles.emptyContainer}>
-								<Text style={styles.emptyText}>No children found</Text>
+								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No children found</Text>
 							</View>
 						)}
 					/>
@@ -343,16 +356,16 @@ const ParentDashboardScreen = () => {
 				{/* Notifications Section */}
 				<View style={styles.sectionContainer}>
 					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>Notifications</Text>
+						<Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
 
 						{unreadCount > 0 && (
-							<View style={styles.badgeContainer}>
-								<Text style={styles.badgeText}>{unreadCount}</Text>
+							<View style={[styles.badgeContainer, { backgroundColor: theme.danger }]}>
+								<Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{unreadCount}</Text>
 							</View>
 						)}
 
 						<TouchableOpacity style={styles.viewAllButton} onPress={handleViewAllNotifications}>
-							<Text style={styles.viewAllText}>View All</Text>
+							<Text style={[styles.viewAllText, { color: theme.primary }]}>View All</Text>
 						</TouchableOpacity>
 					</View>
 
@@ -363,13 +376,13 @@ const ParentDashboardScreen = () => {
 						scrollEnabled={false}
 						ListEmptyComponent={() => (
 							<View style={styles.emptyContainer}>
-								<Text style={styles.emptyText}>No notifications</Text>
+								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No notifications</Text>
 							</View>
 						)}
 					/>
 				</View>
 			</ScrollView>
-		</View>
+		</SafeAreaView>
 	)
 }
 

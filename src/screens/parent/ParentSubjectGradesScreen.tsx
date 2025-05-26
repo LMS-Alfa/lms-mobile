@@ -109,6 +109,9 @@ const ParentSubjectGradesScreen = () => {
     const fetchGrades = async () => {
       try {
         setError(null);
+        setLoading(true);
+        
+        console.log(`Fetching grades for child: ${childId}, subject: ${subjectId}, name: ${subjectName}`);
         
         // Get all subject grades from Supabase
         const subjectsData = await fetchChildGrades(childId);
@@ -117,15 +120,29 @@ const ParentSubjectGradesScreen = () => {
         const subjectData = subjectsData.find(s => s.id === subjectId);
         
         if (!subjectData) {
-          setError('Subject data not found');
+          console.error(`Subject with ID ${subjectId} not found in data`);
+          setError('Subject data not found. Please try again.');
           setLoading(false);
           return;
         }
         
+        console.log(`Found subject: ${subjectData.subjectName}`);
         console.log(`Found ${subjectData.grades.length} grades/attendance records for this subject`);
         
+        // Filter out any invalid data and sort by date (newest first)
+        const validGrades = (subjectData.grades || [])
+          .filter(grade => grade && (grade.date || grade.score || grade.attendance))
+          .sort((a, b) => {
+            // Sort by date (newest first)
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+        
+        console.log(`Using ${validGrades.length} valid grades after filtering and sorting`);
+        
         // Set the grades for this subject
-        setGrades(subjectData.grades);
+        setGrades(validGrades);
       } catch (err) {
         console.error('Error fetching subject grades:', err);
         setError('Failed to load grades. Please try again.');
