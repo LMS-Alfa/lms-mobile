@@ -11,6 +11,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Mock data - will be replaced with API calls
 const mockUpcomingAssignments = [
@@ -50,6 +52,7 @@ const StudentDashboardScreen = () => {
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
   const { user } = useAuthStore();
+  const { theme } = useAppTheme();
 
   // Simulate data loading
   useEffect(() => {
@@ -70,194 +73,197 @@ const StudentDashboardScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading your dashboard...</Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading your dashboard...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Welcome Section */}
-      <View style={styles.welcomeSection}>
-        <Text style={styles.welcomeText}>
-          Welcome back, {user?.firstName || 'Student'}!
-        </Text>
-        <Text style={styles.dateText}>
-          {new Date().toLocaleDateString('en-US', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}
-        </Text>
-      </View>
-
-      {/* Quick Stats */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Icon name="file-text" size={24} color="#4A90E2" />
-          <Text style={styles.statNumber}>{mockUpcomingAssignments.length}</Text>
-          <Text style={styles.statLabel}>Assignments</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Icon name="calendar" size={24} color="#4A90E2" />
-          <Text style={styles.statNumber}>{mockSchedule.length}</Text>
-          <Text style={styles.statLabel}>Classes Today</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Icon name="bell" size={24} color="#4A90E2" />
-          <Text style={styles.statNumber}>{mockAnnouncements.length}</Text>
-          <Text style={styles.statLabel}>Announcements</Text>
-        </View>
-      </View>
-
-      {/* Upcoming Assignments */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Upcoming Assignments</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Assignments' as never)}>
-            <Text style={styles.seeAllText}>See all</Text>
-          </TouchableOpacity>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: theme.background }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />
+        }
+      >
+        {/* Welcome Section */}
+        <View style={[styles.welcomeSection, { backgroundColor: theme.primary }]}>
+          <Text style={styles.welcomeText}>
+            Welcome back, {user?.firstName || 'Student'}!
+          </Text>
+          <Text style={styles.dateText}>
+            {new Date().toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </Text>
         </View>
 
-        {mockUpcomingAssignments.map(assignment => (
-          <TouchableOpacity 
-            key={assignment.id} 
-            style={styles.assignmentItem}
-            onPress={() => navigation.navigate('Assignments' as never)}
-          >
-            <View style={styles.assignmentContent}>
-              <Text style={styles.assignmentTitle}>{assignment.title}</Text>
-              <Text style={styles.assignmentSubject}>{assignment.subject}</Text>
-            </View>
-            <View style={styles.assignmentDueDate}>
-              <Text style={styles.dueDateLabel}>Due:</Text>
-              <Text style={styles.dueDateText}>{new Date(assignment.dueDate).toLocaleDateString()}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Recent Grades */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Grades</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Grades' as never)}>
-            <Text style={styles.seeAllText}>See all</Text>
-          </TouchableOpacity>
+        {/* Quick Stats */}
+        <View style={[styles.statsContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.statItem}>
+            <Icon name="file-text" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockUpcomingAssignments.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Assignments</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Icon name="calendar" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockSchedule.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Classes Today</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Icon name="bell" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockAnnouncements.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Announcements</Text>
+          </View>
         </View>
 
-        {mockRecentGrades.map(grade => (
-          <TouchableOpacity 
-            key={grade.id} 
-            style={styles.gradeItem}
-            onPress={() => navigation.navigate('Grades' as never)}
-          >
-            <View style={styles.gradeContent}>
-              <Text style={styles.gradeTitle}>{grade.title}</Text>
-              <Text style={styles.gradeSubject}>{grade.subject}</Text>
-            </View>
-            <View style={styles.gradeValue}>
-              <Text style={[
-                styles.gradeText, 
-                grade.grade.startsWith('A') ? styles.gradeA :
-                grade.grade.startsWith('B') ? styles.gradeB :
-                grade.grade.startsWith('C') ? styles.gradeC :
-                styles.gradeOther
-              ]}>
-                {grade.grade}
+        {/* Upcoming Assignments */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Assignments</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Assignments' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockUpcomingAssignments.map(assignment => (
+            <TouchableOpacity 
+              key={assignment.id} 
+              style={[styles.assignmentItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Assignments' as never)}
+            >
+              <View style={styles.assignmentContent}>
+                <Text style={[styles.assignmentTitle, { color: theme.text }]}>{assignment.title}</Text>
+                <Text style={[styles.assignmentSubject, { color: theme.textSecondary }]}>{assignment.subject}</Text>
+              </View>
+              <View style={styles.assignmentDueDate}>
+                <Text style={[styles.dueDateLabel, { color: theme.subtleText }]}>Due:</Text>
+                <Text style={[styles.dueDateText, { color: theme.danger }]}>{new Date(assignment.dueDate).toLocaleDateString()}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recent Grades */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Grades</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Grades' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockRecentGrades.map(grade => (
+            <TouchableOpacity 
+              key={grade.id} 
+              style={[styles.gradeItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Grades' as never)}
+            >
+              <View style={styles.gradeContent}>
+                <Text style={[styles.gradeTitle, { color: theme.text }]}>{grade.title}</Text>
+                <Text style={[styles.gradeSubject, { color: theme.textSecondary }]}>{grade.subject}</Text>
+              </View>
+              <View style={styles.gradeValue}>
+                <Text style={[
+                  styles.gradeText, 
+                  grade.grade.startsWith('A') ? styles.gradeA :
+                  grade.grade.startsWith('B') ? styles.gradeB :
+                  grade.grade.startsWith('C') ? styles.gradeC :
+                  styles.gradeOther
+                ]}>
+                  {grade.grade}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Today's Schedule */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Today's Schedule</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Schedule' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>Full schedule</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockSchedule.map(classItem => (
+            <TouchableOpacity 
+              key={classItem.id} 
+              style={[styles.scheduleItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Schedule' as never)}
+            >
+              <View style={styles.scheduleTimeContainer}>
+                <Text style={[styles.scheduleTime, { color: theme.text }]}>{classItem.time}</Text>
+                <Text style={[styles.scheduleRoom, { color: theme.textSecondary }]}>{classItem.room}</Text>
+              </View>
+              <View style={styles.scheduleDetails}>
+                <Text style={[styles.scheduleTitle, { color: theme.text }]}>{classItem.title}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recent Announcements */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Announcements</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Announcements' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockAnnouncements.map(announcement => (
+            <TouchableOpacity 
+              key={announcement.id} 
+              style={[styles.announcementItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Announcements' as never)}
+            >
+              <View style={styles.announcementHeader}>
+                <Text style={[styles.announcementTitle, { color: theme.text }]}>{announcement.title}</Text>
+                <Text style={[styles.announcementDate, { color: theme.subtleText }]}>
+                  {new Date(announcement.date).toLocaleDateString()}
+                </Text>
+              </View>
+              <Text style={[styles.announcementContent, { color: theme.textSecondary }]} numberOfLines={2}>
+                {announcement.content}
               </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Today's Schedule */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Today's Schedule</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Schedule' as never)}>
-            <Text style={styles.seeAllText}>Full schedule</Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        {mockSchedule.map(classItem => (
-          <TouchableOpacity 
-            key={classItem.id} 
-            style={styles.scheduleItem}
-            onPress={() => navigation.navigate('Schedule' as never)}
-          >
-            <View style={styles.scheduleTimeContainer}>
-              <Text style={styles.scheduleTime}>{classItem.time}</Text>
-              <Text style={styles.scheduleRoom}>{classItem.room}</Text>
-            </View>
-            <View style={styles.scheduleDetails}>
-              <Text style={styles.scheduleTitle}>{classItem.title}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Recent Announcements */}
-      <View style={styles.sectionContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Announcements</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Announcements' as never)}>
-            <Text style={styles.seeAllText}>See all</Text>
-          </TouchableOpacity>
-        </View>
-
-        {mockAnnouncements.map(announcement => (
-          <TouchableOpacity 
-            key={announcement.id} 
-            style={styles.announcementItem}
-            onPress={() => navigation.navigate('Announcements' as never)}
-          >
-            <View style={styles.announcementHeader}>
-              <Text style={styles.announcementTitle}>{announcement.title}</Text>
-              <Text style={styles.announcementDate}>
-                {new Date(announcement.date).toLocaleDateString()}
-              </Text>
-            </View>
-            <Text style={styles.announcementContent} numberOfLines={2}>
-              {announcement.content}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Bottom padding */}
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+        {/* Bottom padding */}
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
   },
   welcomeSection: {
     padding: 20,
-    backgroundColor: '#4A90E2',
   },
   welcomeText: {
     fontSize: 24,
@@ -273,7 +279,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginHorizontal: 16,
     marginTop: -20,
@@ -290,16 +295,13 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
     marginTop: 5,
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
     marginTop: 2,
   },
   sectionContainer: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginHorizontal: 16,
     marginTop: 20,
@@ -319,18 +321,15 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   seeAllText: {
     fontSize: 14,
-    color: '#4A90E2',
   },
   assignmentItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   assignmentContent: {
     flex: 1,
@@ -338,31 +337,26 @@ const styles = StyleSheet.create({
   assignmentTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     marginBottom: 4,
   },
   assignmentSubject: {
     fontSize: 14,
-    color: '#666',
   },
   assignmentDueDate: {
     alignItems: 'flex-end',
   },
   dueDateLabel: {
     fontSize: 12,
-    color: '#999',
   },
   dueDateText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#FF6B6B',
   },
   gradeItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   gradeContent: {
     flex: 1,
@@ -370,12 +364,10 @@ const styles = StyleSheet.create({
   gradeTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     marginBottom: 4,
   },
   gradeSubject: {
     fontSize: 14,
-    color: '#666',
   },
   gradeValue: {
     justifyContent: 'center',
@@ -400,7 +392,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   scheduleTimeContainer: {
     width: 120,
@@ -408,11 +399,9 @@ const styles = StyleSheet.create({
   scheduleTime: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
   },
   scheduleRoom: {
     fontSize: 12,
-    color: '#666',
     marginTop: 4,
   },
   scheduleDetails: {
@@ -422,12 +411,10 @@ const styles = StyleSheet.create({
   scheduleTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
   },
   announcementItem: {
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   announcementHeader: {
     flexDirection: 'row',
@@ -438,16 +425,13 @@ const styles = StyleSheet.create({
   announcementTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     flex: 1,
   },
   announcementDate: {
     fontSize: 12,
-    color: '#999',
   },
   announcementContent: {
     fontSize: 14,
-    color: '#666',
     lineHeight: 20,
   },
   bottomPadding: {

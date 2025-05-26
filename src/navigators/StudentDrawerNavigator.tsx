@@ -4,6 +4,8 @@ import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerI
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../store/authStore';
+import { useAppTheme } from '../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import student screens
 import StudentDashboardScreen from '../screens/student/StudentDashboardScreen';
@@ -18,10 +20,10 @@ const Drawer = createDrawerNavigator();
 const { width } = Dimensions.get('window');
 
 // Custom drawer content
-const CustomDrawerContent = (props) => {
-  const { logout } = useAuthStore();
+const CustomDrawerContent = (props: any) => {
+  const { logout, user } = useAuthStore();
   const navigation = useNavigation();
-  const { user } = useAuthStore();
+  const { theme } = useAppTheme();
 
   const handleLogout = () => {
     Alert.alert(
@@ -34,78 +36,69 @@ const CustomDrawerContent = (props) => {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            // Navigate to login screen
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'Login' as never }]
-            });
           }
         }
       ]
     );
   };
 
+  const handleSettingsPress = () => {
+    navigation.navigate('Settings' as never);
+  };
+
   return (
-    <DrawerContentScrollView 
-      {...props}
-      contentContainerStyle={styles.drawerContentContainer}
-    >
-      <View style={styles.profileContainer}>
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>
-              {user?.firstName?.charAt(0) || user?.username?.charAt(0) || 'S'}
-            </Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.userName}>{user?.firstName} {user?.lastName || ''}</Text>
-            <Text style={styles.userEmail}>{user?.email || 'Student'}</Text>
-          </View>
+    <SafeAreaView style={[styles.drawerContainer, { backgroundColor: theme.cardBackground }]} edges={['top', 'bottom']}>
+      <View style={[styles.userSection, { borderBottomColor: theme.separator }]}>
+        <View style={[styles.avatarCircle, { backgroundColor: theme.primary }]}>
+          <Text style={styles.avatarText}>
+            {user?.firstName?.charAt(0) || 'S'}
+          </Text>
         </View>
-        <View style={styles.divider} />
+        <View style={styles.userInfo}>
+          <Text style={[styles.userName, { color: theme.text }]}>
+            {user?.firstName} {user?.lastName}
+          </Text>
+          <Text style={[styles.userRole, { color: theme.textSecondary }]}>
+            Student
+          </Text>
+        </View>
       </View>
       
-      <View style={styles.drawerItemsContainer}>
+      <ScrollView style={styles.scrollContainer}>
         <DrawerItemList {...props} />
-      </View>
+      </ScrollView>
       
-      <View style={styles.bottomItems}>
-        <View style={styles.divider} />
-        <DrawerItem
-          label="Settings"
-          icon={({ color, size }) => (
-            <View style={styles.iconContainer}>
-              <Icon name="settings" color={color} size={size} />
-            </View>
-          )}
-          onPress={() => navigation.navigate('Settings')}
-          style={styles.bottomDrawerItem}
-          labelStyle={styles.drawerItemLabel}
-        />
-        <DrawerItem
-          label="Logout"
-          icon={({ color, size }) => (
-            <View style={styles.iconContainer}>
-              <Icon name="log-out" color="#F44336" size={size} />
-            </View>
-          )}
+      <View style={[styles.bottomSection, { borderTopColor: theme.separator }]}>
+        <TouchableOpacity 
+          style={styles.bottomItem}
+          onPress={handleSettingsPress}
+        >
+          <Icon name="settings" size={22} color={theme.text} style={styles.bottomIcon} />
+          <Text style={[styles.bottomText, { color: theme.text }]}>Settings</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.bottomItem}
           onPress={handleLogout}
-          labelStyle={styles.logoutLabel}
-          style={styles.bottomDrawerItem}
-        />
+        >
+          <Icon name="log-out" size={22} color={theme.danger} style={styles.bottomIcon} />
+          <Text style={[styles.bottomText, { color: theme.danger }]}>Logout</Text>
+        </TouchableOpacity>
       </View>
-    </DrawerContentScrollView>
+    </SafeAreaView>
   );
 };
 
 // Student Drawer Navigator
 const StudentDrawerNavigator = () => {
+  const { theme } = useAppTheme();
+
   return (
     <Drawer.Navigator
       initialRouteName="Dashboard"
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#4A90E2',
+          backgroundColor: theme.primary,
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -113,8 +106,8 @@ const StudentDrawerNavigator = () => {
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        drawerActiveTintColor: '#4A90E2',
-        drawerInactiveTintColor: '#333333',
+        drawerActiveTintColor: theme.primary,
+        drawerInactiveTintColor: theme.text,
         drawerLabelStyle: {
           marginLeft: -6,
           fontSize: 16,
@@ -122,7 +115,7 @@ const StudentDrawerNavigator = () => {
         },
         drawerStyle: {
           width: width * 0.75, // 75% of screen width
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.cardBackground,
         },
         drawerItemStyle: {
           borderRadius: 8,
@@ -225,77 +218,60 @@ const StudentDrawerNavigator = () => {
 };
 
 const styles = StyleSheet.create({
-  drawerContentContainer: {
+  drawerContainer: {
     flex: 1,
   },
-  profileContainer: {
-    padding: 0,
-    backgroundColor: '#F5F7FA',
-  },
-  profileHeader: {
+  userSection: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 20,
+    borderBottomWidth: 1,
   },
-  avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4A90E2',
+  avatarCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
   },
-  profileInfo: {
+  userInfo: {
+    marginLeft: 15,
     flex: 1,
   },
   userName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 4,
   },
-  userEmail: {
+  userRole: {
     fontSize: 14,
-    color: '#666666',
+    marginTop: 2,
   },
-  drawerItemsContainer: {
+  scrollContainer: {
     flex: 1,
-    paddingTop: 15,
   },
-  bottomItems: {
-    marginBottom: 10,
+  bottomSection: {
+    padding: 15,
+    borderTopWidth: 1,
   },
-  bottomDrawerItem: {
-    marginVertical: 0,
+  bottomItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
-    marginHorizontal: 0,
-    marginVertical: 5,
+  bottomIcon: {
+    marginRight: 18,
   },
-  drawerItemLabel: {
-    fontWeight: '500',
-  },
-  logoutLabel: {
-    color: '#F44336',
+  bottomText: {
+    fontSize: 16,
     fontWeight: '500',
   },
   iconContainer: {
-    width: 24,
-    alignItems: 'center',
-    marginRight: 12,
+    marginLeft: 5,
   },
 });
 

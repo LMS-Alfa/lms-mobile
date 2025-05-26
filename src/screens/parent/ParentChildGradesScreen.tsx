@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
-  SafeAreaView,
   Platform,
   StatusBar,
   Alert
@@ -18,12 +17,14 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { ParentHomeStackParamList } from '../../navigators/ParentTabNavigator';
 import Icon from 'react-native-vector-icons/Feather';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   fetchChildGrades,
   fetchParentChildAssignments,
   ChildAssignment
 } from '../../services/parentSupabaseService';
 import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 // Import these types from parentSupabaseService directly
 // This is a workaround since we're using a slightly different interface structure
@@ -110,6 +111,7 @@ const ParentChildGradesScreen = () => {
   const route = useRoute<ParentChildGradesRouteProp>();
   const navigation = useNavigation<ParentChildGradesNavigationProp>();
   const { user } = useAuthStore();
+  const { theme } = useAppTheme();
   
   const { childId, childName } = route.params;
   
@@ -303,7 +305,12 @@ const ParentChildGradesScreen = () => {
       <TouchableOpacity 
         style={[
           styles.subjectCard,
-          isExpanded && { borderColor: item.color, borderWidth: 2 }
+          { 
+            backgroundColor: theme.cardBackground,
+            shadowColor: theme.text,
+            borderColor: isExpanded ? item.color : theme.border 
+          },
+          isExpanded && { borderWidth: 2 }
         ]}
         onPress={() => toggleSubjectExpansion(item.id)}
       >
@@ -312,13 +319,13 @@ const ParentChildGradesScreen = () => {
             <Text style={styles.subjectIconText}>{item.subjectName?.charAt(0) || 'S'}</Text>
           </View>
           <View style={styles.subjectInfo}>
-            <Text style={styles.subjectName}>{item.subjectName || 'Unknown Subject'}</Text>
-            <Text style={styles.teacherName}>{item.teacherName || 'Unknown Teacher'}</Text>
+            <Text style={[styles.subjectName, { color: theme.text }]}>{item.subjectName || 'Unknown Subject'}</Text>
+            <Text style={[styles.teacherName, { color: theme.textSecondary }]}>{item.teacherName || 'Unknown Teacher'}</Text>
           </View>
-          <View style={styles.gradeContainer}>
+          <View style={[styles.gradeContainer, { backgroundColor: theme.highlight }]}>
             <Text style={[
               styles.gradeText, 
-              { color: item.hasGrades ? item.color : '#999999' }
+              { color: item.hasGrades ? item.color : theme.subtleText }
             ]}>
               {item.averageGrade || 'N/A'}
             </Text>
@@ -327,7 +334,7 @@ const ParentChildGradesScreen = () => {
         
         {isExpanded && (
           <View style={styles.gradesListContainer}>
-            <Text style={styles.gradesListTitle}>Recent Grades & Attendance</Text>
+            <Text style={[styles.gradesListTitle, { color: theme.text }]}>Recent Grades & Attendance</Text>
             
             {grades.length > 0 ? (
               grades.slice(0, 5).map((grade: GradeItem, idx: number) => {
@@ -337,11 +344,11 @@ const ParentChildGradesScreen = () => {
                 const date = grade.date ? formatDate(grade.date) : 'No date';
                 
                 return (
-                  <View key={`grade-${item.id}-${grade.id || idx}-${idx}`} style={styles.gradeItem}>
+                  <View key={`grade-${item.id}-${grade.id || idx}-${idx}`} style={[styles.gradeItem, { borderBottomColor: theme.separator }]}>
                     <View style={styles.gradeItemLeft}>
-                      <Text style={styles.gradeItemTitle}>{title}</Text>
+                      <Text style={[styles.gradeItemTitle, { color: theme.text }]}>{title}</Text>
                       <View style={styles.gradeItemDateContainer}>
-                        <Text style={styles.gradeItemDate}>{date}</Text>
+                        <Text style={[styles.gradeItemDate, { color: theme.subtleText }]}>{date}</Text>
                         {getAttendanceIcon(grade.attendance)}
                       </View>
                     </View>
@@ -351,14 +358,14 @@ const ParentChildGradesScreen = () => {
                           <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(grade.grade) }]}>
                             <Text style={styles.gradeBadgeText}>{grade.grade || '?'}</Text>
                           </View>
-                          <Text style={styles.scoreText}>{grade.score}</Text>
+                          <Text style={[styles.scoreText, { color: theme.text }]}>{grade.score}</Text>
                         </>
                       ) : grade.attendance ? (
                         <View style={[styles.attendanceBadge, { backgroundColor: getAttendanceColor(grade.attendance) }]}>
                           <Text style={styles.gradeBadgeText}>{getAttendanceText(grade.attendance)}</Text>
                         </View>
                       ) : (
-                        <View style={[styles.attendanceBadge, { backgroundColor: '#999999' }]}>
+                        <View style={[styles.attendanceBadge, { backgroundColor: theme.subtleText }]}>
                           <Text style={styles.gradeBadgeText}>No Data</Text>
                         </View>
                       )}
@@ -367,15 +374,15 @@ const ParentChildGradesScreen = () => {
                 );
               })
             ) : (
-              <Text style={styles.noGradesText}>No grades or attendance records available for this subject</Text>
+              <Text style={[styles.noGradesText, { color: theme.textSecondary }]}>No grades or attendance records available for this subject</Text>
             )}
             
             {grades.length > 0 && (
               <TouchableOpacity 
-                style={styles.viewAllButton}
+                style={[styles.viewAllButton, { backgroundColor: theme.highlight }]}
                 onPress={() => navigateToSubjectGrades(item)}
               >
-                <Text style={styles.viewAllText}>View All Records</Text>
+                <Text style={[styles.viewAllText, { color: theme.primary }]}>View All Records</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -386,10 +393,10 @@ const ParentChildGradesScreen = () => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-          <Text style={styles.loadingText}>Loading grades...</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading grades...</Text>
         </View>
       </SafeAreaView>
     );
@@ -397,12 +404,12 @@ const ParentChildGradesScreen = () => {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Icon name="alert-circle" size={50} color="#F44336" />
-          <Text style={styles.errorText}>{error}</Text>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+          <Icon name="alert-circle" size={50} color={theme.danger} />
+          <Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
           <TouchableOpacity 
-            style={styles.retryButton}
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
             onPress={() => navigation.goBack()}
           >
             <Text style={styles.retryButtonText}>Go Back</Text>
@@ -413,50 +420,53 @@ const ParentChildGradesScreen = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.contentContainer}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={[styles.contentContainer, { backgroundColor: theme.background }]}>
         {/* Header with back button */}
-        <View style={styles.header}>
+        <View style={[styles.header, { 
+          borderBottomColor: theme.border,
+          backgroundColor: theme.cardBackground 
+        }]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Icon name="arrow-left" size={24} color="#4A90E2" />
+            <Icon name="arrow-left" size={24} color={theme.primary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{childName}'s Progress</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>{childName}'s Progress</Text>
         </View>
         
         <ScrollView>
           {/* Performance Summary */}
           {performanceSummary && (
-            <View style={styles.summaryCard}>
-              <Text style={styles.sectionTitle}>Performance Overview</Text>
+            <View style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Performance Overview</Text>
               
               <View style={styles.performanceContainer}>
                 <View style={styles.performanceItem}>
                   <View style={[styles.performanceIcon, { backgroundColor: '#4A90E2' }]}>
                     <Icon name="award" size={18} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.performanceValue}>{performanceSummary.gpa}</Text>
-                  <Text style={styles.performanceLabel}>GPA</Text>
+                  <Text style={[styles.performanceValue, { color: theme.text }]}>{performanceSummary.gpa}</Text>
+                  <Text style={[styles.performanceLabel, { color: theme.textSecondary }]}>GPA</Text>
                 </View>
                 
                 <View style={styles.performanceItem}>
                   <View style={[styles.performanceIcon, { backgroundColor: '#66BB6A' }]}>
                     <Icon name="check-square" size={18} color="#FFFFFF" />
                   </View>
-                  <Text style={styles.performanceValue}>
+                  <Text style={[styles.performanceValue, { color: theme.text }]}>
                     {performanceSummary.completedAssignments}/{performanceSummary.totalAssignments}
                   </Text>
-                  <Text style={styles.performanceLabel}>Assignments</Text>
+                  <Text style={[styles.performanceLabel, { color: theme.textSecondary }]}>Assignments</Text>
                 </View>
               </View>
             </View>
           )}
 
           {/* Assignments Summary */}
-          <View style={styles.summaryCard}>
-            <Text style={styles.sectionTitle}>Assignments Overview</Text>
+          <View style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Assignments Overview</Text>
             
             {assignments && assignments.length > 0 ? (
               <>
@@ -465,36 +475,36 @@ const ParentChildGradesScreen = () => {
                     <View style={[styles.assignmentIcon, { backgroundColor: '#66BB6A' }]}>
                       <Icon name="check" size={18} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.assignmentValue}>{performanceSummary?.completedAssignments || 0}</Text>
-                    <Text style={styles.assignmentLabel}>Completed</Text>
+                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.completedAssignments || 0}</Text>
+                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Completed</Text>
                   </View>
 
                   <View style={styles.assignmentItem}>
                     <View style={[styles.assignmentIcon, { backgroundColor: '#F44336' }]}>
                       <Icon name="alert-triangle" size={18} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.assignmentValue}>{performanceSummary?.overdueAssignments || 0}</Text>
-                    <Text style={styles.assignmentLabel}>Overdue</Text>
+                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.overdueAssignments || 0}</Text>
+                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Overdue</Text>
                   </View>
                   
                   <View style={styles.assignmentItem}>
                     <View style={[styles.assignmentIcon, { backgroundColor: '#FF9800' }]}>
                       <Icon name="clock" size={18} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.assignmentValue}>{performanceSummary?.upcomingAssignments || 0}</Text>
-                    <Text style={styles.assignmentLabel}>Upcoming</Text>
+                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.upcomingAssignments || 0}</Text>
+                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Upcoming</Text>
                   </View>
                 </View>
 
                 {/* Recent Assignments List */}
                 <View style={styles.recentAssignments}>
-                  <Text style={styles.recentAssignmentsTitle}>Recent Assignments</Text>
+                  <Text style={[styles.recentAssignmentsTitle, { color: theme.text }]}>Recent Assignments</Text>
                   {assignments.slice(0, 3).map((assignment, index) => (
                     assignment && (
-                      <View key={`assignment-${index}`} style={styles.assignmentListItem}>
+                      <View key={`assignment-${index}`} style={[styles.assignmentListItem, { borderBottomColor: theme.separator }]}>
                         <View style={styles.assignmentListItemLeft}>
-                          <Text style={styles.assignmentListItemTitle}>{assignment.title || 'Untitled Assignment'}</Text>
-                          <Text style={styles.assignmentListItemSubject}>{assignment.subjectName || 'No Subject'}</Text>
+                          <Text style={[styles.assignmentListItemTitle, { color: theme.text }]}>{assignment.title || 'Untitled Assignment'}</Text>
+                          <Text style={[styles.assignmentListItemSubject, { color: theme.textSecondary }]}>{assignment.subjectName || 'No Subject'}</Text>
                         </View>
                         <View style={styles.assignmentListItemRight}>
                           {assignment.isCompleted ? (
@@ -510,7 +520,7 @@ const ParentChildGradesScreen = () => {
                           ) : (
                             <View style={[styles.assignmentStatus, styles.assignmentUpcoming]}>
                               <Icon name="clock" size={14} color="#FFFFFF" />
-                              <Text style={styles.assignmentStatusText}>Due Soon</Text>
+                              <Text style={styles.assignmentStatusText}>Upcoming</Text>
                             </View>
                           )}
                         </View>
@@ -530,56 +540,52 @@ const ParentChildGradesScreen = () => {
           
           {/* Attendance Summary */}
           {attendanceSummary && (
-            <View style={styles.summaryCard}>
-              <Text style={styles.sectionTitle}>Attendance Overview</Text>
+            <View style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Attendance Overview</Text>
               
               <View style={styles.attendanceContainer}>
                 <View style={styles.attendanceItem}>
                   <View style={[styles.attendanceStatusIcon, { backgroundColor: '#4CAF50' }]}>
                     <Text style={styles.attendanceStatusText}>{attendanceSummary.present}</Text>
                   </View>
-                  <Text style={styles.attendanceStatusLabel}>Present</Text>
+                  <Text style={[styles.attendanceStatusLabel, { color: theme.textSecondary }]}>Present</Text>
                 </View>
                 
                 <View style={styles.attendanceItem}>
                   <View style={[styles.attendanceStatusIcon, { backgroundColor: '#F44336' }]}>
                     <Text style={styles.attendanceStatusText}>{attendanceSummary.absent}</Text>
                   </View>
-                  <Text style={styles.attendanceStatusLabel}>Absent</Text>
+                  <Text style={[styles.attendanceStatusLabel, { color: theme.textSecondary }]}>Absent</Text>
                 </View>
                 
                 <View style={styles.attendanceItem}>
                   <View style={[styles.attendanceStatusIcon, { backgroundColor: '#FF9800' }]}>
                     <Text style={styles.attendanceStatusText}>{attendanceSummary.late}</Text>
                   </View>
-                  <Text style={styles.attendanceStatusLabel}>Late</Text>
+                  <Text style={[styles.attendanceStatusLabel, { color: theme.textSecondary }]}>Late</Text>
                 </View>
                 
                 <View style={styles.attendanceItem}>
                   <View style={[styles.attendanceStatusIcon, { backgroundColor: '#9E9E9E' }]}>
                     <Text style={styles.attendanceStatusText}>{attendanceSummary.excused}</Text>
                   </View>
-                  <Text style={styles.attendanceStatusLabel}>Excused</Text>
+                  <Text style={[styles.attendanceStatusLabel, { color: theme.textSecondary }]}>Excused</Text>
                 </View>
               </View>
             </View>
           )}
           
           {/* Subjects */}
-          <View style={styles.subjectsContainer}>
-            <Text style={styles.sectionTitle}>Subjects</Text>
+          <View style={[styles.subjectsContainer, { backgroundColor: theme.cardBackground }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
             
             <FlatList
               data={subjects}
               renderItem={renderSubjectItem}
-              keyExtractor={(item, index) => `subject-${item.id.toString()}-${index}`}
-              extraData={expandedSubjects}
+              keyExtractor={(item) => item.id?.toString() || item.subjectName || Math.random().toString()}
               scrollEnabled={false}
               ListEmptyComponent={() => (
-                <View style={styles.emptyContainer}>
-                  <Icon name="book" size={40} color="#ccc" />
-                  <Text style={styles.emptyText}>No subjects found</Text>
-                </View>
+                <Text style={[styles.noSubjectsText, { color: theme.textSecondary }]}>No subjects found</Text>
               )}
             />
           </View>
@@ -605,9 +611,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     paddingHorizontal: 20,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
   },
   backButton: {
     padding: 8,
@@ -825,7 +829,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#F5F7FA',
   },
   gradeText: {
     fontSize: 16,
@@ -982,6 +985,10 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     marginTop: 10,
+  },
+  noSubjectsText: {
+    textAlign: 'center',
+    padding: 16,
   },
 });
 

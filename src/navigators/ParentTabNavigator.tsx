@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { NavigatorScreenParams } from '@react-navigation/native';
+import { useAppTheme } from '../contexts/ThemeContext';
 
 // Import Parent Screens
 import ParentDashboardScreen from '../screens/parent/ParentDashboardScreen';
@@ -12,6 +13,8 @@ import ParentChildGradesScreen from '../screens/parent/ParentChildGradesScreen';
 import ParentSubjectGradesScreen from '../screens/parent/ParentSubjectGradesScreen';
 import ParentAssignmentDetailScreen from '../screens/parent/ParentAssignmentDetailScreen';
 import ParentScheduleScreen from '../screens/parent/ParentScheduleScreen';
+import EditProfileScreen from '../screens/parent/EditProfileScreen';
+import ChangePasswordScreen from '../screens/parent/ChangePasswordScreen';
 
 // Define Param Lists
 export type ParentHomeStackParamList = {
@@ -23,15 +26,24 @@ export type ParentHomeStackParamList = {
   // Add other screens that can be navigated to from the dashboard/home flow
 };
 
+// Define Settings Stack Param List
+export type SettingsStackParamList = {
+  ParentSettings: undefined;
+  EditProfile: undefined;
+  ChangePassword: undefined;
+  // Add other settings-related screens here, e.g., ChangePassword
+};
+
 export type ParentTabParamList = {
   Home: NavigatorScreenParams<ParentHomeStackParamList> | undefined;
   Notifications: undefined;
   Schedule: { childId?: string; childName?: string };
-  Settings: undefined;
+  Settings: NavigatorScreenParams<SettingsStackParamList>;
 };
 
 const Tab = createBottomTabNavigator<ParentTabParamList>();
 const HomeStack = createStackNavigator<ParentHomeStackParamList>();
+const SettingsStack = createStackNavigator<SettingsStackParamList>();
 
 // Home Stack Navigator (for screens accessible from the Home tab)
 const HomeStackNavigator = () => {
@@ -46,14 +58,31 @@ const HomeStackNavigator = () => {
   );
 };
 
+// Settings Stack Navigator
+const SettingsStackNavigator = () => {
+  return (
+    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+      <SettingsStack.Screen name="ParentSettings" component={ParentSettingsScreen} />
+      <SettingsStack.Screen name="EditProfile" component={EditProfileScreen} />
+      <SettingsStack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+    </SettingsStack.Navigator>
+  );
+};
+
 const ParentTabNavigator = () => {
+  const { theme } = useAppTheme();
+  
   return (
     <Tab.Navigator
       initialRouteName="Home"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#007AFF', // Example active color
-        tabBarInactiveTintColor: 'gray',
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textSecondary,
+        tabBarStyle: {
+          backgroundColor: theme.cardBackground,
+          borderTopColor: theme.border,
+        },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
           if (route.name === 'Home') {
@@ -72,7 +101,7 @@ const ParentTabNavigator = () => {
       <Tab.Screen name="Home" component={HomeStackNavigator} />
       <Tab.Screen name="Notifications" component={ParentNotificationsScreen} />
       <Tab.Screen name="Schedule" component={ParentScheduleScreen} />
-      <Tab.Screen name="Settings" component={ParentSettingsScreen} />
+      <Tab.Screen name="Settings" component={SettingsStackNavigator} />
     </Tab.Navigator>
   );
 };

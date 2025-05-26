@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  SafeAreaView,
   TextInput,
   ScrollView,
   Alert
@@ -15,6 +14,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/Feather';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   ParentNotification
 } from '../../services/parentService';
@@ -24,6 +24,7 @@ import {
 } from '../../services/parentSupabaseService';
 import { ParentTabParamList } from '../../navigators/ParentTabNavigator';
 import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 // Define navigation type
 type ParentNavigationProp = StackNavigationProp<ParentTabParamList>;
@@ -89,6 +90,7 @@ const ParentNotificationsScreen = () => {
   
   const navigation = useNavigation<ParentNavigationProp>();
   const { user } = useAuthStore();
+  const { theme } = useAppTheme();
   
   // Load notifications when component mounts
   useEffect(() => {
@@ -268,8 +270,15 @@ const ParentNotificationsScreen = () => {
       <TouchableOpacity 
         style={[
           styles.notificationItem,
-          item.read ? styles.notificationRead : styles.notificationUnread,
-          isParentSpecific && styles.parentSpecificNotification
+          { 
+            backgroundColor: theme.cardBackground,
+            shadowColor: theme.text,
+            borderColor: theme.border
+          },
+          item.read 
+            ? { backgroundColor: theme.cardBackground }
+            : { backgroundColor: theme.highlight },
+          isParentSpecific && { borderLeftWidth: 4, borderLeftColor: '#66BB6A' }
         ]}
         onPress={() => handleNotificationPress(item)}
       >
@@ -279,14 +288,14 @@ const ParentNotificationsScreen = () => {
         
         <View style={styles.notificationContent}>
           <View style={styles.notificationHeader}>
-            <Text style={styles.notificationTitle}>
+            <Text style={[styles.notificationTitle, { color: theme.text }]}>
               {item.title}
               {isParentSpecific && <Text style={styles.parentTag}> • Parent</Text>}
             </Text>
-            {!item.read && <View style={styles.unreadDot} />}
+            {!item.read && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
           </View>
-          <Text style={styles.notificationMessage}>{item.message}</Text>
-          <Text style={styles.notificationDate}>{formatDate(item.date)}</Text>
+          <Text style={[styles.notificationMessage, { color: theme.textSecondary }]}>{item.message}</Text>
+          <Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -294,219 +303,235 @@ const ParentNotificationsScreen = () => {
   
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading notifications...</Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
   
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="alert-circle" size={50} color="#F44336" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+          <Icon name="alert-circle" size={50} color={theme.danger} />
+          <Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+          <TouchableOpacity 
+            style={[styles.button, { backgroundColor: theme.primary }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.buttonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
   
   const unreadCount = notifications.filter(n => !n.read).length;
   
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-left" size={24} color="#4A90E2" />
-        </TouchableOpacity>
-        
-        <View style={styles.headerContent}>
-          <Text style={styles.screenTitle}>Notifications</Text>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-left" size={24} color={theme.primary} />
+          </TouchableOpacity>
+          
+          <View style={styles.headerContent}>
+            <Text style={[styles.screenTitle, { color: theme.text }]}>Notifications</Text>
+            {unreadCount > 0 && (
+              <View style={styles.badgeContainer}>
+                <Text style={styles.badgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+          
           {unreadCount > 0 && (
-            <View style={styles.badgeContainer}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
+            <TouchableOpacity 
+              style={styles.markReadButton}
+              onPress={markAllAsRead}
+            >
+              <Text style={[styles.markReadText, { color: theme.primary }]}>Mark all read</Text>
+            </TouchableOpacity>
           )}
         </View>
         
-        {unreadCount > 0 && (
-          <TouchableOpacity 
-            style={styles.markReadButton}
-            onPress={markAllAsRead}
-          >
-            <Text style={styles.markReadText}>Mark all read</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      
-      {/* Search bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={18} color="#666" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search notifications..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          clearButtonMode="while-editing"
+        {/* Search bar */}
+        <View style={[styles.searchContainer, { 
+          backgroundColor: theme.cardBackground, 
+          borderColor: theme.border 
+        }]}>
+          <Icon name="search" size={18} color={theme.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.text }]}
+            placeholder="Search notifications..."
+            placeholderTextColor={theme.placeholder}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            clearButtonMode="while-editing"
+          />
+        </View>
+        
+        {/* Filter buttons */}
+        <View style={styles.filterContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <TouchableOpacity 
+              style={[
+                styles.filterButton, 
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'grade' && { backgroundColor: getNotificationColor('grade') }
+              ]}
+              onPress={() => toggleFilter('grade')}
+            >
+              <Icon 
+                name="award" 
+                size={14} 
+                color={activeFilter === 'grade' ? '#FFFFFF' : getNotificationColor('grade')} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'grade' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Grades</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.filterButton, 
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'attendance' && { backgroundColor: getNotificationColor('attendance') }
+              ]}
+              onPress={() => toggleFilter('attendance')}
+            >
+              <Icon 
+                name="user-check" 
+                size={14} 
+                color={activeFilter === 'attendance' ? '#FFFFFF' : getNotificationColor('attendance')} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'attendance' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Attendance</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.filterButton, 
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'behavior' && { backgroundColor: getNotificationColor('behavior') }
+              ]}
+              onPress={() => toggleFilter('behavior')}
+            >
+              <Icon 
+                name="alert-triangle" 
+                size={14} 
+                color={activeFilter === 'behavior' ? '#FFFFFF' : getNotificationColor('behavior')} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'behavior' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Behavior</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.filterButton, 
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'announcement' && { backgroundColor: getNotificationColor('announcement') }
+              ]}
+              onPress={() => toggleFilter('announcement')}
+            >
+              <Icon 
+                name="bell" 
+                size={14} 
+                color={activeFilter === 'announcement' ? '#FFFFFF' : getNotificationColor('announcement')} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'announcement' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Announcements</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.filterButton,
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'parent' && { backgroundColor: '#66BB6A' }
+              ]}
+              onPress={() => toggleFilter('parent')}
+            >
+              <Icon 
+                name="users" 
+                size={14} 
+                color={activeFilter === 'parent' ? '#FFFFFF' : '#66BB6A'} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'parent' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Parent Info</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.filterButton, 
+                { backgroundColor: theme.cardBackground, borderColor: theme.border },
+                activeFilter === 'event' && { backgroundColor: getNotificationColor('event') }
+              ]}
+              onPress={() => toggleFilter('event')}
+            >
+              <Icon 
+                name="calendar" 
+                size={14} 
+                color={activeFilter === 'event' ? '#FFFFFF' : getNotificationColor('event')} 
+              />
+              <Text style={[
+                styles.filterText,
+                { color: activeFilter === 'event' ? '#FFFFFF' : theme.textSecondary }
+              ]}>Events</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+        
+        {/* Notifications list */}
+        <FlatList
+          data={filteredNotifications}
+          renderItem={renderNotificationItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.notificationsList}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Icon name="bell-off" size={50} color={theme.textSecondary} />
+              <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+                {activeFilter || searchQuery
+                  ? 'No notifications match your filters'
+                  : 'No notifications yet'}
+              </Text>
+            </View>
+          )}
         />
       </View>
-      
-      {/* Filter buttons */}
-      <View style={styles.filterContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity 
-            style={[
-              styles.filterButton, 
-              activeFilter === 'grade' && { backgroundColor: getNotificationColor('grade') }
-            ]}
-            onPress={() => toggleFilter('grade')}
-          >
-            <Icon 
-              name="award" 
-              size={14} 
-              color={activeFilter === 'grade' ? '#FFFFFF' : getNotificationColor('grade')} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'grade' && { color: '#FFFFFF' }
-            ]}>Grades</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.filterButton, 
-              activeFilter === 'attendance' && { backgroundColor: getNotificationColor('attendance') }
-            ]}
-            onPress={() => toggleFilter('attendance')}
-          >
-            <Icon 
-              name="user-check" 
-              size={14} 
-              color={activeFilter === 'attendance' ? '#FFFFFF' : getNotificationColor('attendance')} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'attendance' && { color: '#FFFFFF' }
-            ]}>Attendance</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.filterButton, 
-              activeFilter === 'behavior' && { backgroundColor: getNotificationColor('behavior') }
-            ]}
-            onPress={() => toggleFilter('behavior')}
-          >
-            <Icon 
-              name="alert-triangle" 
-              size={14} 
-              color={activeFilter === 'behavior' ? '#FFFFFF' : getNotificationColor('behavior')} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'behavior' && { color: '#FFFFFF' }
-            ]}>Behavior</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.filterButton, 
-              activeFilter === 'announcement' && { backgroundColor: getNotificationColor('announcement') }
-            ]}
-            onPress={() => toggleFilter('announcement')}
-          >
-            <Icon 
-              name="bell" 
-              size={14} 
-              color={activeFilter === 'announcement' ? '#FFFFFF' : getNotificationColor('announcement')} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'announcement' && { color: '#FFFFFF' }
-            ]}>Announcements</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.filterButton,
-              activeFilter === 'parent' && { backgroundColor: '#66BB6A' }
-            ]}
-            onPress={() => toggleFilter('parent')}
-          >
-            <Icon 
-              name="users" 
-              size={14} 
-              color={activeFilter === 'parent' ? '#FFFFFF' : '#66BB6A'} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'parent' && { color: '#FFFFFF' }
-            ]}>Parent Info</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.filterButton, 
-              activeFilter === 'event' && { backgroundColor: getNotificationColor('event') }
-            ]}
-            onPress={() => toggleFilter('event')}
-          >
-            <Icon 
-              name="calendar" 
-              size={14} 
-              color={activeFilter === 'event' ? '#FFFFFF' : getNotificationColor('event')} 
-            />
-            <Text style={[
-              styles.filterText,
-              activeFilter === 'event' && { color: '#FFFFFF' }
-            ]}>Events</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-      
-      {/* Notifications list */}
-      <FlatList
-        data={filteredNotifications}
-        renderItem={renderNotificationItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.notificationsList}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Icon name="bell-off" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>
-              {activeFilter || searchQuery
-                ? 'No notifications match your filters'
-                : 'No notifications yet'}
-            </Text>
-          </View>
-        )}
-      />
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
   },
   backButton: {
     padding: 8,
@@ -519,7 +544,6 @@ const styles = StyleSheet.create({
   screenTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333333',
   },
   badgeContainer: {
     backgroundColor: '#F44336',
@@ -537,20 +561,17 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   markReadText: {
-    color: '#4A90E2',
     fontSize: 14,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     margin: 16,
     marginTop: 16,
     marginBottom: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
   },
   searchIcon: {
     marginRight: 8,
@@ -559,7 +580,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 40,
     fontSize: 16,
-    color: '#333333',
   },
   filterContainer: {
     paddingHorizontal: 16,
@@ -571,14 +591,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     marginRight: 8,
     borderWidth: 1,
-    borderColor: '#EEEEEE',
   },
   filterText: {
     fontSize: 12,
-    color: '#666666',
     marginLeft: 4,
   },
   notificationsList: {
@@ -586,32 +603,25 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   notificationItem: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 16,
     marginBottom: 10,
     flexDirection: 'row',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 1,
     elevation: 1,
   },
   notificationUnread: {
-    backgroundColor: '#FFFFFF',
   },
   notificationRead: {
-    backgroundColor: '#F8F9FA',
   },
   parentSpecificNotification: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#66BB6A',
   },
   notificationIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -627,7 +637,6 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
     flex: 1,
   },
   parentTag: {
@@ -639,45 +648,37 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4A90E2',
     marginLeft: 8,
   },
   notificationMessage: {
     fontSize: 14,
-    color: '#666666',
     marginBottom: 8,
   },
   notificationDate: {
     fontSize: 12,
-    color: '#999999',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
     padding: 20,
   },
   errorText: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 20,
   },
   button: {
-    backgroundColor: '#4A90E2',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -694,7 +695,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
     textAlign: 'center',
     marginTop: 20,
   },
