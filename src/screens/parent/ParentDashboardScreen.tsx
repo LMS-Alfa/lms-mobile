@@ -13,42 +13,20 @@ import {
 	StyleSheet,
 	Text,
 	TouchableOpacity,
-	View,
+	View
 } from 'react-native'
 import Icon from 'react-native-vector-icons/Feather'
 import RealtimeScoreNotifications from '../../components/parent/RealtimeScoreNotifications'
 import { ParentHomeStackParamList, ParentTabParamList } from '../../navigators/ParentTabNavigator'
 import { ChildData, ParentNotification } from '../../services/parentService'
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  ScrollView,
-  Image,
-  Dimensions,
-  Alert
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import Icon from 'react-native-vector-icons/Feather';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../../store/authStore';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  ChildData, 
-  ParentNotification 
-} from '../../services/parentService';
-
 import {
 	fetchParentChildren,
 	fetchParentNotifications,
 	markParentNotificationAsRead,
 } from '../../services/parentSupabaseService'
-import { useAuthStore } from '../../store/authStore'
 
 // Define navigation types
 type ParentDashboardNavigationProp = StackNavigationProp<
