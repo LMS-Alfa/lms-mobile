@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,21 +6,19 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
-  Image
+  Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../../store/authStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { useNavigation } from '@react-navigation/native';
 
 const SettingsScreen = () => {
   const { user, logout } = useAuthStore();
+  const { isDarkMode, toggleTheme, theme } = useAppTheme();
+  const navigation = useNavigation();
   
-  // Settings state
-  const [darkMode, setDarkMode] = useState(false);
-  const [notifications, setNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [autoDownload, setAutoDownload] = useState(false);
-
   // Handle logout
   const handleLogout = () => {
     Alert.alert(
@@ -39,126 +37,86 @@ const SettingsScreen = () => {
     );
   };
 
-
+  // Navigate to change password screen
+  const handleChangePassword = () => {
+    navigation.navigate('ChangePassword' as never);
+  };
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {user?.firstName?.charAt(0) || user?.username?.charAt(0) || 'S'}
-          </Text>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
+        {/* Profile Section */}
+        <View style={[styles.profileSection, { backgroundColor: theme.cardBackground }]}>
+          <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
+            <Text style={styles.avatarText}>
+              {user?.firstName?.charAt(0) || user?.username?.charAt(0) || 'S'}
+            </Text>
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={[styles.userName, { color: theme.text }]}>{user?.firstName} {user?.lastName || ''}</Text>
+            <Text style={[styles.userEmail, { color: theme.textSecondary }]}>{user?.email || 'student@example.com'}</Text>
+          </View>
+          <TouchableOpacity style={[styles.editButton, { backgroundColor: theme.primary }]}>
+            <Text style={styles.editButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
         </View>
-        <View style={styles.profileInfo}>
-          <Text style={styles.userName}>{user?.firstName} {user?.lastName || ''}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'student@example.com'}</Text>
-        </View>
-        <TouchableOpacity style={styles.editButton}>
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Settings Sections */}
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Icon name="moon" size={22} color="#333" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Dark Mode</Text>
+        {/* Settings Sections */}
+        <View style={[styles.settingsSection, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Appearance</Text>
+          
+          <View style={[styles.settingItem, { borderBottomColor: theme.separator }]}>
+            <View style={styles.settingLeft}>
+              <Icon name={isDarkMode ? "moon" : "sun"} size={22} color={theme.text} style={styles.settingIcon} />
+              <Text style={[styles.settingText, { color: theme.text }]}>Dark Mode</Text>
+            </View>
+            <Switch
+              value={isDarkMode}
+              onValueChange={toggleTheme}
+              trackColor={{ false: theme.disabled, true: theme.primary }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={theme.disabled}
+            />
           </View>
-          <Switch
-            value={darkMode}
-            onValueChange={setDarkMode}
-            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-            thumbColor="#FFFFFF"
-          />
         </View>
-      </View>
 
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Icon name="bell" size={22} color="#333" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Push Notifications</Text>
-          </View>
-          <Switch
-            value={notifications}
-            onValueChange={setNotifications}
-            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-            thumbColor="#FFFFFF"
-          />
+        <View style={[styles.settingsSection, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Account</Text>
+          
+          <TouchableOpacity style={[styles.accountItem, { borderBottomColor: theme.separator }]} onPress={handleChangePassword}>
+            <View style={styles.settingLeft}>
+              <Icon name="lock" size={22} color={theme.text} style={styles.settingIcon} />
+              <Text style={[styles.settingText, { color: theme.text }]}>Change Password</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={[styles.accountItem, { borderBottomColor: theme.separator }]} onPress={handleLogout}>
+            <View style={styles.settingLeft}>
+              <Icon name="log-out" size={22} color={theme.danger} style={styles.settingIcon} />
+              <Text style={[styles.settingText, { color: theme.danger }]}>Logout</Text>
+            </View>
+            <Icon name="chevron-right" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Icon name="mail" size={22} color="#333" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Email Notifications</Text>
-          </View>
-          <Switch
-            value={emailNotifications}
-            onValueChange={setEmailNotifications}
-            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-            thumbColor="#FFFFFF"
-          />
+
+        <View style={styles.footer}>
+          <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version 1.0.0</Text>
+          <Text style={[styles.copyrightText, { color: theme.textSecondary }]}>© 2023 LMS Educational System</Text>
         </View>
-      </View>
-
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Content</Text>
-        
-        <View style={styles.settingItem}>
-          <View style={styles.settingLeft}>
-            <Icon name="download" size={22} color="#333" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Auto-download Materials</Text>
-          </View>
-          <Switch
-            value={autoDownload}
-            onValueChange={setAutoDownload}
-            trackColor={{ false: '#E0E0E0', true: '#4A90E2' }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      </View>
-
-      <View style={styles.settingsSection}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        
-        <TouchableOpacity style={styles.accountItem} onPress={() => Alert.alert('Info', 'Password change feature coming soon')}>
-          <View style={styles.settingLeft}>
-            <Icon name="lock" size={22} color="#333" style={styles.settingIcon} />
-            <Text style={styles.settingText}>Change Password</Text>
-          </View>
-          <Icon name="chevron-right" size={20} color="#999" />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.accountItem} onPress={handleLogout}>
-          <View style={styles.settingLeft}>
-            <Icon name="log-out" size={22} color="#F44336" style={styles.settingIcon} />
-            <Text style={[styles.settingText, { color: '#F44336' }]}>Logout</Text>
-          </View>
-          <Icon name="chevron-right" size={20} color="#999" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.versionText}>Version 1.0.0</Text>
-        <Text style={styles.copyrightText}>© 2025 LMS Educational System</Text>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   profileSection: {
-    backgroundColor: '#FFFFFF',
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,7 +126,6 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -189,15 +146,12 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333333',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 14,
-    color: '#666666',
   },
   editButton: {
-    backgroundColor: '#4A90E2',
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
@@ -208,7 +162,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   settingsSection: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     marginHorizontal: 16,
     marginBottom: 16,
@@ -222,7 +175,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333333',
     marginBottom: 16,
   },
   settingItem: {
@@ -231,7 +183,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   settingLeft: {
     flexDirection: 'row',
@@ -242,7 +193,6 @@ const styles = StyleSheet.create({
   },
   settingText: {
     fontSize: 16,
-    color: '#333333',
   },
   accountItem: {
     flexDirection: 'row',
@@ -250,7 +200,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   footer: {
     padding: 24,
@@ -258,12 +207,10 @@ const styles = StyleSheet.create({
   },
   versionText: {
     fontSize: 14,
-    color: '#999999',
     marginBottom: 4,
   },
   copyrightText: {
     fontSize: 12,
-    color: '#999999',
   },
 });
 

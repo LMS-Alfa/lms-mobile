@@ -17,6 +17,8 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   ChildData, 
   ParentNotification 
@@ -96,6 +98,7 @@ const ParentDashboardScreen = () => {
   
   const navigation = useNavigation<ParentDashboardNavigationProp>();
   const { user } = useAuthStore();
+  const { theme } = useAppTheme();
 
   // Get read announcements from AsyncStorage
   useEffect(() => {
@@ -213,7 +216,17 @@ const ParentDashboardScreen = () => {
 
   // Render child item
   const renderChildItem = ({ item }: { item: ChildData }) => (
-    <TouchableOpacity onPress={() => navigateToChildGrades(item)} style={styles.childCard}>
+    <TouchableOpacity 
+      onPress={() => navigateToChildGrades(item)} 
+      style={[
+        styles.childCard, 
+        { 
+          backgroundColor: theme.cardBackground,
+          shadowColor: theme.text,
+          borderColor: theme.border
+        }
+      ]}
+    >
       <View style={styles.childInfoContainer}>
         {item.avatar ? (
           <Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -221,11 +234,11 @@ const ParentDashboardScreen = () => {
           getChildAvatar(item.firstName, item.lastName)
         )}
         <View style={styles.childDetails}>
-          <Text style={styles.childName}>{`${item.firstName} ${item.lastName}`}</Text>
-          {item.className && <Text style={styles.childClass}>{item.className}</Text>}
+          <Text style={[styles.childName, { color: theme.text }]}>{`${item.firstName} ${item.lastName}`}</Text>
+          {item.className && <Text style={[styles.childClass, { color: theme.textSecondary }]}>{item.className}</Text>}
         </View>
       </View>
-      <View style={styles.childActionsContainer}> 
+      <View style={[styles.childActionsContainer, { borderTopColor: theme.separator }]}> 
         <TouchableOpacity 
           style={[styles.actionButton, styles.gradesButton]}
           onPress={() => navigateToChildGrades(item)}
@@ -249,7 +262,11 @@ const ParentDashboardScreen = () => {
     <TouchableOpacity 
       style={[
         styles.notificationItem,
-        item.read ? styles.notificationRead : styles.notificationUnread
+        { 
+          backgroundColor: theme.cardBackground,
+          shadowColor: theme.text
+        },
+        item.read ? { backgroundColor: theme.cardBackground } : { backgroundColor: theme.highlight }
       ]}
       onPress={() => handleNotificationPress(item)}
     >
@@ -258,114 +275,121 @@ const ParentDashboardScreen = () => {
       </View>
       
       <View style={styles.notificationContent}>
-        <Text style={styles.notificationTitle}>{item.title}</Text>
-        <Text style={styles.notificationMessage} numberOfLines={2}>{item.message}</Text>
-        <Text style={styles.notificationDate}>{formatDate(item.date)}</Text>
+        <Text style={[styles.notificationTitle, { color: theme.text }]}>{item.title}</Text>
+        <Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>{item.message}</Text>
+        <Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
       </View>
       
-      {!item.read && <View style={styles.unreadIndicator} />}
+      {!item.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />}
     </TouchableOpacity>
   );
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="alert-circle" size={50} color="#F44336" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => setLoading(true)}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+          <Icon name="alert-circle" size={50} color={theme.danger} />
+          <Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+          <TouchableOpacity 
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
+            onPress={() => setLoading(true)}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        {/* Parent Welcome Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerTitle}>Parent Dashboard</Text>
-            <Text style={styles.headerSubtitle}>Monitor your children's progress</Text>
-          </View>
-        </View>
-        
-        {/* Children Section */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>My Children</Text>
-          
-          <FlatList
-            data={children}
-            renderItem={renderChildItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No children found</Text>
-              </View>
-            )}
-          />
-        </View>
-        
-        {/* Notifications Section */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Notifications</Text>
-            
-            {unreadCount > 0 && (
-              <View style={styles.badgeContainer}>
-                <Text style={styles.badgeText}>{unreadCount}</Text>
-              </View>
-            )}
-            
-            <TouchableOpacity style={styles.viewAllButton} onPress={handleViewAllNotifications}>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <ScrollView style={styles.scrollView}>
+          {/* Parent Welcome Header */}
+          <View style={[styles.header, { backgroundColor: theme.primary }]}>
+            <View>
+              <Text style={styles.headerTitle}>Parent Dashboard</Text>
+              <Text style={styles.headerSubtitle}>Monitor your children's progress</Text>
+            </View>
           </View>
           
-          <FlatList
-            data={notifications.slice(0, 3)}
-            renderItem={renderNotificationItem}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No notifications</Text>
-              </View>
-            )}
-          />
-        </View>
-      </ScrollView>
-    </View>
+          {/* Children Section */}
+          <View style={styles.sectionContainer}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>My Children</Text>
+            
+            <FlatList
+              data={children}
+              renderItem={renderChildItem}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No children found</Text>
+                </View>
+              )}
+            />
+          </View>
+          
+          {/* Notifications Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
+              
+              {unreadCount > 0 && (
+                <View style={styles.badgeContainer}>
+                  <Text style={styles.badgeText}>{unreadCount}</Text>
+                </View>
+              )}
+              
+              <TouchableOpacity style={styles.viewAllButton} onPress={handleViewAllNotifications}>
+                <Text style={[styles.viewAllText, { color: theme.primary }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <FlatList
+              data={notifications.slice(0, 3)}
+              renderItem={renderNotificationItem}
+              keyExtractor={item => item.id}
+              scrollEnabled={false}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No notifications</Text>
+                </View>
+              )}
+            />
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const { width } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    backgroundColor: '#4A90E2',
     padding: 20,
     paddingTop: 40,
     paddingBottom: 30,
@@ -393,7 +417,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333333',
     marginBottom: 12,
   },
   badgeContainer: {
@@ -412,19 +435,17 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   viewAllText: {
-    color: '#4A90E2',
     fontSize: 14,
   },
   childCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
   },
   childInfoContainer: {
     flexDirection: 'row',
@@ -457,11 +478,9 @@ const styles = StyleSheet.create({
   childName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   childClass: {
     fontSize: 14,
-    color: '#666',
     marginTop: 2,
   },
   childActivity: {
@@ -474,7 +493,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     marginTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#EEE',
     paddingTop: 10,
   },
   actionButton: {
@@ -497,29 +515,24 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   notificationItem: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 12,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 1,
     elevation: 1,
   },
   notificationUnread: {
-    backgroundColor: '#FFFFFF',
   },
   notificationRead: {
-    backgroundColor: '#F8F9FA',
   },
   notificationIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#4A90E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -530,52 +543,43 @@ const styles = StyleSheet.create({
   notificationTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333333',
     marginBottom: 2,
   },
   notificationMessage: {
     fontSize: 12,
-    color: '#666666',
     marginBottom: 4,
   },
   notificationDate: {
     fontSize: 10,
-    color: '#999999',
   },
   unreadIndicator: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#4A90E2',
     marginLeft: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
     padding: 20,
   },
   errorText: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#4A90E2',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -592,7 +596,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#999',
     textAlign: 'center',
   },
 });

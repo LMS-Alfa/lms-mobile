@@ -1,3 +1,19 @@
+
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  RefreshControl,
+  ActivityIndicator
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/Feather';
+import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
 import React, { useEffect, useState } from 'react'
@@ -52,6 +68,12 @@ const mockAnnouncements = [
 ]
 
 const StudentDashboardScreen = () => {
+
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const navigation = useNavigation();
+  const { user } = useAuthStore();
+  const { theme } = useAppTheme();
 	const [refreshing, setRefreshing] = useState(false)
 	const [loading, setLoading] = useState(true)
 	const [assignments, setAssignments] = useState<Assignment[]>([])
@@ -119,6 +141,7 @@ const StudentDashboardScreen = () => {
 		Promise.all([fetchAssignments(), fetchGrades()]).finally(() => setLoading(false))
 	}, [user?.id])
 
+
 	const onRefresh = React.useCallback(async () => {
 		setRefreshing(true)
 		await Promise.all([fetchAssignments(), fetchGrades()])
@@ -146,6 +169,374 @@ const StudentDashboardScreen = () => {
 				return '#4A90E2'
 		}
 	}
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading your dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <ScrollView 
+        style={[styles.container, { backgroundColor: theme.background }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} />
+        }
+      >
+        {/* Welcome Section */}
+        <View style={[styles.welcomeSection, { backgroundColor: theme.primary }]}>
+          <Text style={styles.welcomeText}>
+            Welcome back, {user?.firstName || 'Student'}!
+          </Text>
+          <Text style={styles.dateText}>
+            {new Date().toLocaleDateString('en-US', { 
+              weekday: 'long', 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </Text>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={[styles.statsContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.statItem}>
+            <Icon name="file-text" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockUpcomingAssignments.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Assignments</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Icon name="calendar" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockSchedule.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Classes Today</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Icon name="bell" size={24} color={theme.primary} />
+            <Text style={[styles.statNumber, { color: theme.text }]}>{mockAnnouncements.length}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Announcements</Text>
+          </View>
+        </View>
+
+        {/* Upcoming Assignments */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Upcoming Assignments</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Assignments' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockUpcomingAssignments.map(assignment => (
+            <TouchableOpacity 
+              key={assignment.id} 
+              style={[styles.assignmentItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Assignments' as never)}
+            >
+              <View style={styles.assignmentContent}>
+                <Text style={[styles.assignmentTitle, { color: theme.text }]}>{assignment.title}</Text>
+                <Text style={[styles.assignmentSubject, { color: theme.textSecondary }]}>{assignment.subject}</Text>
+              </View>
+              <View style={styles.assignmentDueDate}>
+                <Text style={[styles.dueDateLabel, { color: theme.subtleText }]}>Due:</Text>
+                <Text style={[styles.dueDateText, { color: theme.danger }]}>{new Date(assignment.dueDate).toLocaleDateString()}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recent Grades */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Grades</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Grades' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockRecentGrades.map(grade => (
+            <TouchableOpacity 
+              key={grade.id} 
+              style={[styles.gradeItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Grades' as never)}
+            >
+              <View style={styles.gradeContent}>
+                <Text style={[styles.gradeTitle, { color: theme.text }]}>{grade.title}</Text>
+                <Text style={[styles.gradeSubject, { color: theme.textSecondary }]}>{grade.subject}</Text>
+              </View>
+              <View style={styles.gradeValue}>
+                <Text style={[
+                  styles.gradeText, 
+                  grade.grade.startsWith('A') ? styles.gradeA :
+                  grade.grade.startsWith('B') ? styles.gradeB :
+                  grade.grade.startsWith('C') ? styles.gradeC :
+                  styles.gradeOther
+                ]}>
+                  {grade.grade}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Today's Schedule */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Today's Schedule</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Schedule' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>Full schedule</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockSchedule.map(classItem => (
+            <TouchableOpacity 
+              key={classItem.id} 
+              style={[styles.scheduleItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Schedule' as never)}
+            >
+              <View style={styles.scheduleTimeContainer}>
+                <Text style={[styles.scheduleTime, { color: theme.text }]}>{classItem.time}</Text>
+                <Text style={[styles.scheduleRoom, { color: theme.textSecondary }]}>{classItem.room}</Text>
+              </View>
+              <View style={styles.scheduleDetails}>
+                <Text style={[styles.scheduleTitle, { color: theme.text }]}>{classItem.title}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recent Announcements */}
+        <View style={[styles.sectionContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Announcements</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Announcements' as never)}>
+              <Text style={[styles.seeAllText, { color: theme.primary }]}>See all</Text>
+            </TouchableOpacity>
+          </View>
+
+          {mockAnnouncements.map(announcement => (
+            <TouchableOpacity 
+              key={announcement.id} 
+              style={[styles.announcementItem, { borderBottomColor: theme.separator }]}
+              onPress={() => navigation.navigate('Announcements' as never)}
+            >
+              <View style={styles.announcementHeader}>
+                <Text style={[styles.announcementTitle, { color: theme.text }]}>{announcement.title}</Text>
+                <Text style={[styles.announcementDate, { color: theme.subtleText }]}>
+                  {new Date(announcement.date).toLocaleDateString()}
+                </Text>
+              </View>
+              <Text style={[styles.announcementContent, { color: theme.textSecondary }]} numberOfLines={2}>
+                {announcement.content}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Bottom padding */}
+        <View style={styles.bottomPadding} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  welcomeSection: {
+    padding: 20,
+  },
+  welcomeText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 5,
+  },
+  dateText: {
+    fontSize: 14,
+    color: '#E1F0FF',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: -20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 5,
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  sectionContainer: {
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  seeAllText: {
+    fontSize: 14,
+  },
+  assignmentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  assignmentContent: {
+    flex: 1,
+  },
+  assignmentTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  assignmentSubject: {
+    fontSize: 14,
+  },
+  assignmentDueDate: {
+    alignItems: 'flex-end',
+  },
+  dueDateLabel: {
+    fontSize: 12,
+  },
+  dueDateText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  gradeItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  gradeContent: {
+    flex: 1,
+  },
+  gradeTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  gradeSubject: {
+    fontSize: 14,
+  },
+  gradeValue: {
+    justifyContent: 'center',
+  },
+  gradeText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  gradeA: {
+    color: '#4CAF50',
+  },
+  gradeB: {
+    color: '#8BC34A',
+  },
+  gradeC: {
+    color: '#FFC107',
+  },
+  gradeOther: {
+    color: '#FF5722',
+  },
+  scheduleItem: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  scheduleTimeContainer: {
+    width: 120,
+  },
+  scheduleTime: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scheduleRoom: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  scheduleDetails: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  scheduleTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  announcementItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  announcementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  announcementTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    flex: 1,
+  },
+  announcementDate: {
+    fontSize: 12,
+  },
+  announcementContent: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  bottomPadding: {
+    height: 24,
+  },
+});
 
 	const getStatusText = (status: Assignment['status']) => {
 		switch (status) {
