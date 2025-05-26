@@ -7,7 +7,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import AdminNavigator from './AdminNavigator';
 import TeacherNavigator from './TeacherNavigator';
 import StudentNavigator from './StudentNavigator';
-import ParentNavigator from './ParentNavigator';
+import ParentTabNavigator from './ParentTabNavigator';
 import LoadingScreen from '../screens/LoadingScreen';
 
 // Define the auth stack navigator type
@@ -19,7 +19,7 @@ type AuthStackParamList = {
 type AppStackParamList = {
   TeacherRoot: undefined;
   StudentHome: undefined;
-  ParentHome: undefined;
+  ParentMain: undefined;
   DefaultHome: undefined;
   AdminRoot: undefined;
 };
@@ -88,7 +88,7 @@ const AppNavigator = () => {
     return <StudentNavigator />;
   }
   if (user?.role === 'parent') {
-    return <ParentNavigator />;
+    return <ParentTabNavigator />;
   }
 
   return (
@@ -102,9 +102,9 @@ const AppNavigator = () => {
       )}
       {user?.role === 'parent' && (
         <AppStack.Screen 
-          name="ParentHome" 
-          component={ParentHomeScreen} 
-          options={{ title: 'Parent Dashboard' }}
+          name="ParentMain"
+          component={ParentTabNavigator}
+          options={{ headerShown: false }}
         />
       )}
       {(!user || !['teacher', 'student', 'parent', 'admin'].includes(user?.role as string)) && (
