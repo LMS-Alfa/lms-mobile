@@ -101,7 +101,6 @@ const getAttendanceColor = (attendance?: string): string => {
 
 const ParentChildGradesScreen = () => {
   const [subjects, setSubjects] = useState<SubjectGrade[]>([]);
-  const [expandedSubjects, setExpandedSubjects] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attendanceSummary, setAttendanceSummary] = useState<any>(null);
@@ -277,42 +276,22 @@ const ParentChildGradesScreen = () => {
       subjectName: subject.subjectName
     });
   };
-  
-  // Toggle subject expansion
-  const toggleSubjectExpansion = (subjectId: number) => {
-    setExpandedSubjects(prev => ({
-      ...prev,
-      [subjectId]: !prev[subjectId]
-    }));
-  };
 
   // Render subject item
   const renderSubjectItem = ({ item }: { item: SubjectGrade }) => {
-    const isExpanded = expandedSubjects[item.id];
-    
     // Make sure we have valid grades array
     const grades = item.grades || [];
     
-    // Log information about this subject for debugging
-    console.log(`[ParentChildGradesScreen] Rendering subject ${item.subjectName} with ${grades.length} grades/attendance records`);
-    
-    // Count how many attendance and grade records we have
-    const attendanceCount = grades.filter(g => g.attendance).length;
-    const gradeCount = grades.filter(g => g.score !== null && g.score !== undefined).length;
-    console.log(`[ParentChildGradesScreen] Subject ${item.subjectName} has ${attendanceCount} attendance records and ${gradeCount} grade records`);
-    
     return (
-      <TouchableOpacity 
+      <View 
         style={[
           styles.subjectCard,
           { 
             backgroundColor: theme.cardBackground,
             shadowColor: theme.text,
-            borderColor: isExpanded ? item.color : theme.border 
-          },
-          isExpanded && { borderWidth: 2 }
+            borderColor: theme.border 
+          }
         ]}
-        onPress={() => toggleSubjectExpansion(item.id)}
       >
         <View style={styles.subjectHeader}>
           <View style={[styles.subjectIconContainer, { backgroundColor: item.color }]}>
@@ -332,62 +311,15 @@ const ParentChildGradesScreen = () => {
           </View>
         </View>
         
-        {isExpanded && (
-          <View style={styles.gradesListContainer}>
-            <Text style={[styles.gradesListTitle, { color: theme.text }]}>Recent Grades & Attendance</Text>
-            
-            {grades.length > 0 ? (
-              grades.slice(0, 5).map((grade: GradeItem, idx: number) => {
-                // Ensure we have a valid title
-                const title = grade.title || 'Untitled Item';
-                // Ensure we have a valid date
-                const date = grade.date ? formatDate(grade.date) : 'No date';
-                
-                return (
-                  <View key={`grade-${item.id}-${grade.id || idx}-${idx}`} style={[styles.gradeItem, { borderBottomColor: theme.separator }]}>
-                    <View style={styles.gradeItemLeft}>
-                      <Text style={[styles.gradeItemTitle, { color: theme.text }]}>{title}</Text>
-                      <View style={styles.gradeItemDateContainer}>
-                        <Text style={[styles.gradeItemDate, { color: theme.subtleText }]}>{date}</Text>
-                        {getAttendanceIcon(grade.attendance)}
-                      </View>
-                    </View>
-                    <View style={styles.gradeItemRight}>
-                      {grade.score !== null && grade.score !== undefined ? (
-                        <>
-                          <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(grade.grade) }]}>
-                            <Text style={styles.gradeBadgeText}>{grade.grade || '?'}</Text>
-                          </View>
-                          <Text style={[styles.scoreText, { color: theme.text }]}>{grade.score}</Text>
-                        </>
-                      ) : grade.attendance ? (
-                        <View style={[styles.attendanceBadge, { backgroundColor: getAttendanceColor(grade.attendance) }]}>
-                          <Text style={styles.gradeBadgeText}>{getAttendanceText(grade.attendance)}</Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.attendanceBadge, { backgroundColor: theme.subtleText }]}>
-                          <Text style={styles.gradeBadgeText}>No Data</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              })
-            ) : (
-              <Text style={[styles.noGradesText, { color: theme.textSecondary }]}>No grades or attendance records available for this subject</Text>
-            )}
-            
-            {grades.length > 0 && (
-              <TouchableOpacity 
-                style={[styles.viewAllButton, { backgroundColor: theme.highlight }]}
-                onPress={() => navigateToSubjectGrades(item)}
-              >
-                <Text style={[styles.viewAllText, { color: theme.primary }]}>View All Records</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-      </TouchableOpacity>
+        <View style={[styles.viewGradesContainer, { borderTopColor: theme.separator }]}>
+          <TouchableOpacity 
+            style={[styles.viewAllButton, { backgroundColor: theme.highlight }]}
+            onPress={() => navigateToSubjectGrades(item)}
+          >
+            <Text style={[styles.viewAllText, { color: theme.primary }]}>View All Grades</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     );
   };
 
@@ -464,80 +396,6 @@ const ParentChildGradesScreen = () => {
             </View>
           )}
 
-          {/* Assignments Summary */}
-          <View style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Assignments Overview</Text>
-            
-            {assignments && assignments.length > 0 ? (
-              <>
-                <View style={styles.assignmentsContainer}>
-                  <View style={styles.assignmentItem}>
-                    <View style={[styles.assignmentIcon, { backgroundColor: '#66BB6A' }]}>
-                      <Icon name="check" size={18} color="#FFFFFF" />
-                    </View>
-                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.completedAssignments || 0}</Text>
-                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Completed</Text>
-                  </View>
-
-                  <View style={styles.assignmentItem}>
-                    <View style={[styles.assignmentIcon, { backgroundColor: '#F44336' }]}>
-                      <Icon name="alert-triangle" size={18} color="#FFFFFF" />
-                    </View>
-                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.overdueAssignments || 0}</Text>
-                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Overdue</Text>
-                  </View>
-                  
-                  <View style={styles.assignmentItem}>
-                    <View style={[styles.assignmentIcon, { backgroundColor: '#FF9800' }]}>
-                      <Icon name="clock" size={18} color="#FFFFFF" />
-                    </View>
-                    <Text style={[styles.assignmentValue, { color: theme.text }]}>{performanceSummary?.upcomingAssignments || 0}</Text>
-                    <Text style={[styles.assignmentLabel, { color: theme.textSecondary }]}>Upcoming</Text>
-                  </View>
-                </View>
-
-                {/* Recent Assignments List */}
-                <View style={styles.recentAssignments}>
-                  <Text style={[styles.recentAssignmentsTitle, { color: theme.text }]}>Recent Assignments</Text>
-                  {assignments.slice(0, 3).map((assignment, index) => (
-                    assignment && (
-                      <View key={`assignment-${index}`} style={[styles.assignmentListItem, { borderBottomColor: theme.separator }]}>
-                        <View style={styles.assignmentListItemLeft}>
-                          <Text style={[styles.assignmentListItemTitle, { color: theme.text }]}>{assignment.title || 'Untitled Assignment'}</Text>
-                          <Text style={[styles.assignmentListItemSubject, { color: theme.textSecondary }]}>{assignment.subjectName || 'No Subject'}</Text>
-                        </View>
-                        <View style={styles.assignmentListItemRight}>
-                          {assignment.isCompleted ? (
-                            <View style={[styles.assignmentStatus, styles.assignmentCompleted]}>
-                              <Icon name="check" size={14} color="#FFFFFF" />
-                              <Text style={styles.assignmentStatusText}>Completed</Text>
-                            </View>
-                          ) : assignment.isPastDue ? (
-                            <View style={[styles.assignmentStatus, styles.assignmentOverdue]}>
-                              <Icon name="alert-triangle" size={14} color="#FFFFFF" />
-                              <Text style={styles.assignmentStatusText}>Overdue</Text>
-                            </View>
-                          ) : (
-                            <View style={[styles.assignmentStatus, styles.assignmentUpcoming]}>
-                              <Icon name="clock" size={14} color="#FFFFFF" />
-                              <Text style={styles.assignmentStatusText}>Upcoming</Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    )
-                  ))}
-                </View>
-              </>
-            ) : (
-              <View style={styles.emptyStateContainer}>
-                <Icon name="clipboard" size={40} color="#ccc" />
-                <Text style={styles.emptyStateText}>No assignments found</Text>
-                <Text style={styles.emptyStateSubtext}>When your child receives assignments, they will appear here</Text>
-              </View>
-            )}
-          </View>
-          
           {/* Attendance Summary */}
           {attendanceSummary && (
             <View style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
@@ -576,13 +434,17 @@ const ParentChildGradesScreen = () => {
           )}
           
           {/* Subjects */}
-          <View style={[styles.subjectsContainer, { backgroundColor: theme.cardBackground }]}>
+          <View style={[styles.subjectsContainer, { backgroundColor: theme.background }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
             
             <FlatList
               data={subjects}
               renderItem={renderSubjectItem}
-              keyExtractor={(item) => item.id?.toString() || item.subjectName || Math.random().toString()}
+              keyExtractor={(item, index) => {
+                // Generate truly unique keys combining ID, name and index
+                return `subject-${item.id || ''}-${item.subjectName || ''}-${index}`;
+              }}
+              extraData={subjects}
               scrollEnabled={false}
               ListEmptyComponent={() => (
                 <Text style={[styles.noSubjectsText, { color: theme.textSecondary }]}>No subjects found</Text>
@@ -668,93 +530,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666666',
   },
-  // Assignments styles
-  assignmentsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  assignmentItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  assignmentIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  assignmentValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 2,
-  },
-  assignmentLabel: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  recentAssignments: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 16,
-  },
-  recentAssignmentsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  assignmentListItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  assignmentListItemLeft: {
-    flex: 1,
-  },
-  assignmentListItemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 2,
-  },
-  assignmentListItemSubject: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  assignmentListItemRight: {
-    marginLeft: 8,
-  },
-  assignmentStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  assignmentCompleted: {
-    backgroundColor: '#66BB6A',
-  },
-  assignmentOverdue: {
-    backgroundColor: '#F44336',
-  },
-  assignmentUpcoming: {
-    backgroundColor: '#FF9800',
-  },
-  assignmentStatusText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
   attendanceContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -834,77 +609,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  gradesListContainer: {
-    marginTop: 16,
-    paddingTop: 16,
+  viewGradesContainer: {
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: '#F0F0F0',
-  },
-  gradesListTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  gradeItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  gradeItemLeft: {
-    flex: 1,
-  },
-  gradeItemTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 2,
-  },
-  gradeItemDateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  gradeItemDate: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  attendanceIcon: {
-    marginLeft: 6,
-  },
-  gradeItemRight: {
-    flexDirection: 'row',
     alignItems: 'center',
   },
   gradeBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
-    marginRight: 8,
-  },
-  attendanceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    backgroundColor: '#9E9E9E',
   },
   gradeBadgeText: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#FFFFFF',
   },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-    minWidth: 28,
-    textAlign: 'right',
+  attendanceIcon: {
+    marginRight: 4,
   },
   viewAllButton: {
-    alignSelf: 'center',
-    marginTop: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: '#F5F7FA',
@@ -914,6 +639,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#4A90E2',
+  },
+  noGradesText: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
+    marginBottom: 8,
   },
   loadingContainer: {
     flex: 1,
@@ -951,44 +682,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  noGradesText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    padding: 20,
-  },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  emptyStateSubtext: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 10,
-  },
   noSubjectsText: {
     textAlign: 'center',
     padding: 16,
+    color: '#999',
   },
 });
 

@@ -24,6 +24,8 @@ import {
 } from '../../services/parentSupabaseService'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../utils/supabase'
+import { useAppTheme } from '../../contexts/ThemeContext'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 // Define navigation type
 type ParentNavigationProp = StackNavigationProp<ParentTabParamList>
@@ -173,6 +175,7 @@ const ParentNotificationsScreen = () => {
 
 	const navigation = useNavigation<ParentNavigationProp>()
 	const { user } = useAuthStore()
+	const { theme } = useAppTheme()
 
 	// Load notifications when component mounts
 	useEffect(() => {
@@ -442,9 +445,12 @@ const ParentNotificationsScreen = () => {
 			<TouchableOpacity
 				style={[
 					styles.notificationItem,
-					item.read ? styles.notificationRead : styles.notificationUnread,
-					isParentSpecific && styles.parentSpecificNotification,
-					isGradeNotification && styles.gradeNotification,
+					{ 
+						backgroundColor: theme.cardBackground,
+						borderColor: theme.border,
+						shadowColor: theme.text
+					},
+					item.read ? { opacity: 0.8 } : {}
 				]}
 				onPress={() => handleNotificationPress(item)}
 			>
@@ -463,7 +469,7 @@ const ParentNotificationsScreen = () => {
 
 				<View style={styles.notificationContent}>
 					<View style={styles.notificationHeader}>
-						<Text style={styles.notificationTitle}>
+						<Text style={[styles.notificationTitle, { color: theme.text }]}>
 							{item.title}
 							{isParentSpecific && <Text style={styles.parentTag}> • Parent</Text>}
 							{isGradeNotification && gradeValue && (
@@ -473,10 +479,10 @@ const ParentNotificationsScreen = () => {
 								</Text>
 							)}
 						</Text>
-						{!item.read && <View style={styles.unreadDot} />}
+						{!item.read && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
 					</View>
-					<Text style={styles.notificationMessage}>{item.message}</Text>
-					<Text style={styles.notificationDate}>{formatDate(item.date)}</Text>
+					<Text style={[styles.notificationMessage, { color: theme.textSecondary }]}>{item.message}</Text>
+					<Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
 				</View>
 			</TouchableOpacity>
 		)
@@ -484,59 +490,64 @@ const ParentNotificationsScreen = () => {
 
 	if (loading) {
 		return (
-			<View style={styles.loadingContainer}>
-				<ActivityIndicator size='large' color='#4A90E2' />
-				<Text style={styles.loadingText}>Loading notifications...</Text>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+					<ActivityIndicator size='large' color={theme.primary} />
+					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	if (error) {
 		return (
-			<View style={styles.errorContainer}>
-				<Icon name='alert-circle' size={50} color='#F44336' />
-				<Text style={styles.errorText}>{error}</Text>
-				<TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
-					<Text style={styles.buttonText}>Go Back</Text>
-				</TouchableOpacity>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+					<Icon name='alert-circle' size={50} color={theme.danger} />
+					<Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+					<TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => navigation.goBack()}>
+						<Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Go Back</Text>
+					</TouchableOpacity>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	const unreadCount = notifications.filter(n => !n.read).length
 
 	return (
-		<View style={styles.container}>
+		<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 			{/* Include the realtime notifications component */}
 			<RealtimeScoreNotifications />
 
-			<View style={styles.header}>
+			<View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
 				<TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-					<Icon name='arrow-left' size={24} color='#4A90E2' />
+					<Icon name='arrow-left' size={24} color={theme.primary} />
 				</TouchableOpacity>
 
 				<View style={styles.headerContent}>
-					<Text style={styles.screenTitle}>Notifications</Text>
+					<Text style={[styles.screenTitle, { color: theme.text }]}>Notifications</Text>
 					{unreadCount > 0 && (
-						<View style={styles.badgeContainer}>
-							<Text style={styles.badgeText}>{unreadCount}</Text>
+						<View style={[styles.badgeContainer, { backgroundColor: theme.danger }]}>
+							<Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{unreadCount}</Text>
 						</View>
 					)}
 				</View>
 
 				{unreadCount > 0 && (
 					<TouchableOpacity style={styles.markReadButton} onPress={markAllAsRead}>
-						<Text style={styles.markReadText}>Mark all read</Text>
+						<Text style={[styles.markReadText, { color: theme.primary }]}>Mark all read</Text>
 					</TouchableOpacity>
 				)}
 			</View>
 
 			{/* Search bar */}
-			<View style={styles.searchContainer}>
-				<Icon name='search' size={18} color='#666' style={styles.searchIcon} />
+			<View style={[styles.searchContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+				<Icon name='search' size={18} color={theme.textSecondary} style={styles.searchIcon} />
 				<TextInput
-					style={styles.searchInput}
+					style={[styles.searchInput, { color: theme.text }]}
 					placeholder='Search notifications...'
+					placeholderTextColor={theme.subtleText}
 					value={searchQuery}
 					onChangeText={setSearchQuery}
 					clearButtonMode='while-editing'
@@ -549,6 +560,7 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
+							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'grade' && { backgroundColor: getNotificationColor('grade') },
 						]}
 						onPress={() => toggleFilter('grade')}
@@ -558,7 +570,10 @@ const ParentNotificationsScreen = () => {
 							size={14}
 							color={activeFilter === 'grade' ? '#FFFFFF' : getNotificationColor('grade')}
 						/>
-						<Text style={[styles.filterText, activeFilter === 'grade' && { color: '#FFFFFF' }]}>
+						<Text style={[
+							styles.filterText, 
+							{ color: activeFilter === 'grade' ? '#FFFFFF' : theme.textSecondary }
+						]}>
 							Grades
 						</Text>
 					</TouchableOpacity>
@@ -566,6 +581,7 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
+							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'attendance' && {
 								backgroundColor: getNotificationColor('attendance'),
 							},
@@ -577,9 +593,10 @@ const ParentNotificationsScreen = () => {
 							size={14}
 							color={activeFilter === 'attendance' ? '#FFFFFF' : getNotificationColor('attendance')}
 						/>
-						<Text
-							style={[styles.filterText, activeFilter === 'attendance' && { color: '#FFFFFF' }]}
-						>
+						<Text style={[
+							styles.filterText, 
+							{ color: activeFilter === 'attendance' ? '#FFFFFF' : theme.textSecondary }
+						]}>
 							Attendance
 						</Text>
 					</TouchableOpacity>
@@ -587,23 +604,7 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
-							activeFilter === 'behavior' && { backgroundColor: getNotificationColor('behavior') },
-						]}
-						onPress={() => toggleFilter('behavior')}
-					>
-						<Icon
-							name='alert-triangle'
-							size={14}
-							color={activeFilter === 'behavior' ? '#FFFFFF' : getNotificationColor('behavior')}
-						/>
-						<Text style={[styles.filterText, activeFilter === 'behavior' && { color: '#FFFFFF' }]}>
-							Behavior
-						</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
-						style={[
-							styles.filterButton,
+							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'announcement' && {
 								backgroundColor: getNotificationColor('announcement'),
 							},
@@ -617,44 +618,11 @@ const ParentNotificationsScreen = () => {
 								activeFilter === 'announcement' ? '#FFFFFF' : getNotificationColor('announcement')
 							}
 						/>
-						<Text
-							style={[styles.filterText, activeFilter === 'announcement' && { color: '#FFFFFF' }]}
-						>
+						<Text style={[
+							styles.filterText, 
+							{ color: activeFilter === 'announcement' ? '#FFFFFF' : theme.textSecondary }
+						]}>
 							Announcements
-						</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
-						style={[
-							styles.filterButton,
-							activeFilter === 'parent' && { backgroundColor: '#66BB6A' },
-						]}
-						onPress={() => toggleFilter('parent')}
-					>
-						<Icon
-							name='users'
-							size={14}
-							color={activeFilter === 'parent' ? '#FFFFFF' : '#66BB6A'}
-						/>
-						<Text style={[styles.filterText, activeFilter === 'parent' && { color: '#FFFFFF' }]}>
-							Parent Info
-						</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
-						style={[
-							styles.filterButton,
-							activeFilter === 'event' && { backgroundColor: getNotificationColor('event') },
-						]}
-						onPress={() => toggleFilter('event')}
-					>
-						<Icon
-							name='calendar'
-							size={14}
-							color={activeFilter === 'event' ? '#FFFFFF' : getNotificationColor('event')}
-						/>
-						<Text style={[styles.filterText, activeFilter === 'event' && { color: '#FFFFFF' }]}>
-							Events
 						</Text>
 					</TouchableOpacity>
 
@@ -676,13 +644,13 @@ const ParentNotificationsScreen = () => {
 				data={filteredNotifications}
 				renderItem={renderNotificationItem}
 				keyExtractor={item => item.id}
-				contentContainerStyle={styles.notificationsList}
+				contentContainerStyle={[styles.notificationsList, { backgroundColor: theme.background }]}
 				refreshing={refreshing}
 				onRefresh={handleRefresh}
 				ListEmptyComponent={() => (
 					<View style={styles.emptyContainer}>
-						<Icon name='bell-off' size={50} color='#ccc' />
-						<Text style={styles.emptyText}>
+						<Icon name='bell-off' size={50} color={theme.subtleText} />
+						<Text style={[styles.emptyText, { color: theme.textSecondary }]}>
 							{activeFilter || searchQuery
 								? 'No notifications match your filters'
 								: 'No notifications yet'}
@@ -690,7 +658,7 @@ const ParentNotificationsScreen = () => {
 					</View>
 				)}
 			/>
-		</View>
+		</SafeAreaView>
 	)
 }
 
@@ -770,10 +738,8 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 12,
 		paddingVertical: 6,
 		borderRadius: 16,
-		backgroundColor: '#FFFFFF',
 		marginRight: 8,
 		borderWidth: 1,
-		borderColor: '#EEEEEE',
 	},
 	clearFilterButton: {
 		backgroundColor: '#F44336',
@@ -781,7 +747,6 @@ const styles = StyleSheet.create({
 	},
 	filterText: {
 		fontSize: 12,
-		color: '#666666',
 		marginLeft: 4,
 	},
 	clearFilterText: {
