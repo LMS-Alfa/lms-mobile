@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native'
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native'
+import { RouteProp, useNavigation, useRoute, NavigationProp } from '@react-navigation/native'
 import { ParentHomeStackParamList } from '../../navigators/ParentTabNavigator'
 import {
   fetchParentChildSubjectGradesForSubject,
@@ -56,7 +56,7 @@ enum TabType {
 
 const ParentSubjectDetailScreen = () => {
   const route = useRoute<ParentSubjectDetailScreenRouteProp>()
-  const navigation = useNavigation()
+  const navigation = useNavigation<NavigationProp<ParentHomeStackParamList>>()
   const { childId, subjectId, subjectName, parentId } = route.params
   const { theme, isDarkMode } = useAppTheme()
 
@@ -319,7 +319,11 @@ const ParentSubjectDetailScreen = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <View style={[styles.header, { backgroundColor: theme.primary }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={26} color="white" />
+        </TouchableOpacity>
         <Text style={styles.title}>{subjectName}</Text>
+        <View style={styles.headerPlaceholder} />
       </View>
 
       <View style={[styles.tabBar, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
@@ -432,15 +436,24 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    elevation: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    elevation: 2,
+  },
+  backButton: {
+    padding: 4,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
     color: 'white',
+    textAlign: 'center',
+  },
+  headerPlaceholder: {
+    width: 26 + 8,
   },
   tabBar: {
     flexDirection: 'row',
