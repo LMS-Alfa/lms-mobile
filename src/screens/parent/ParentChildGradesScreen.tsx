@@ -277,6 +277,24 @@ const ParentChildGradesScreen = () => {
     });
   };
 
+  // Add this function to handle navigation to subject detail
+  const navigateToSubjectDetail = (subject: SubjectGrade) => {
+    // Validate the subject ID before navigating
+    // Check for null, undefined, empty string, or specific invalid string IDs like "0" or "-1"
+    if (!subject.id || subject.id === "0" || subject.id === "-1") {
+      console.error('Invalid subject ID:', subject.id);
+      Alert.alert('Error', 'Unable to view this subject. Invalid subject ID.');
+      return;
+    }
+    
+    navigation.navigate('SubjectDetail', {
+      childId: childId,
+      parentId: user?.id || '',
+      subjectId: subject.id, // Pass subject.id directly as it's already a string
+      subjectName: subject.subjectName
+    });
+  };
+
   // Render subject item
   const renderSubjectItem = ({ item }: { item: SubjectGrade }) => {
     // Make sure we have valid grades array
@@ -314,7 +332,7 @@ const ParentChildGradesScreen = () => {
         <View style={[styles.viewGradesContainer, { borderTopColor: theme.separator }]}>
           <TouchableOpacity 
             style={[styles.viewAllButton, { backgroundColor: theme.highlight }]}
-            onPress={() => navigateToSubjectGrades(item)}
+            onPress={() => navigateToSubjectDetail(item)}
           >
             <Text style={[styles.viewAllText, { color: theme.primary }]}>View All Grades</Text>
           </TouchableOpacity>

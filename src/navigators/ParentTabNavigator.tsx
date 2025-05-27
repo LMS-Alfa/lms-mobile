@@ -15,14 +15,21 @@ import ParentAssignmentDetailScreen from '../screens/parent/ParentAssignmentDeta
 import ParentScheduleScreen from '../screens/parent/ParentScheduleScreen';
 import EditProfileScreen from '../screens/parent/EditProfileScreen';
 import ChangePasswordScreen from '../screens/parent/ChangePasswordScreen';
+import ParentSubjectDetailScreen from '../screens/parent/ParentSubjectDetailScreen';
 
 // Define Param Lists
 export type ParentHomeStackParamList = {
   ParentDashboard: undefined;
   ParentChildGrades: { childId: string; childName: string };
-  ParentSubjectGrades: { childId: string; childName: string; subjectId: number; subjectName: string };
+  ParentSubjectGrades: { childId: string; childName: string; subjectId: string; subjectName: string };
   ParentAssignmentDetail: { assignmentId: string; childId: string; childName?: string; assignmentTitle?: string };
   ParentSchedule: { childId: string; childName?: string };
+  SubjectDetail: { 
+    childId: string; 
+    parentId: string; 
+    subjectId: string; 
+    subjectName: string 
+  };
   // Add other screens that can be navigated to from the dashboard/home flow
 };
 
@@ -54,6 +61,7 @@ const HomeStackNavigator = () => {
       <HomeStack.Screen name="ParentSubjectGrades" component={ParentSubjectGradesScreen} />
       <HomeStack.Screen name="ParentAssignmentDetail" component={ParentAssignmentDetailScreen} />
       <HomeStack.Screen name="ParentSchedule" component={ParentScheduleScreen} />
+      <HomeStack.Screen name="SubjectDetail" component={ParentSubjectDetailScreen} />
     </HomeStack.Navigator>
   );
 };
