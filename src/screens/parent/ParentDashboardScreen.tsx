@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
+	Animated,
 	Dimensions,
 	FlatList,
 	Image,
@@ -13,20 +14,26 @@ import {
 	StyleSheet,
 	Text,
 	TouchableOpacity,
-	View
+	View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Feather'
+import NotificationCard from '../../components/parent/NotificationCard'
 import RealtimeScoreNotifications from '../../components/parent/RealtimeScoreNotifications'
+import StudentPerformanceSummary from '../../components/parent/StudentPerformanceSummary'
+import { NotificationItem } from '../../components/parent/UnifiedNotificationHandler'
+import { EVENTS } from '../../constants/events'
+import { useAppTheme } from '../../contexts/ThemeContext'
 import { ParentHomeStackParamList, ParentTabParamList } from '../../navigators/ParentTabNavigator'
 import { ChildData, ParentNotification } from '../../services/parentService'
-import { useAuthStore } from '../../store/authStore';
-import { useAppTheme } from '../../contexts/ThemeContext';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
 	fetchParentChildren,
 	fetchParentNotifications,
-	markParentNotificationAsRead,
+	fetchUnifiedNotifications,
 } from '../../services/parentSupabaseService'
+import { useAuthStore } from '../../store/authStore'
+import { useUnifiedNotificationStore } from '../../store/unifiedNotificationStore'
+import { eventEmitter } from '../../utils/eventEmitter'
 
 // Define navigation types
 type ParentDashboardNavigationProp = StackNavigationProp<
@@ -36,6 +43,19 @@ type ParentDashboardNavigationProp = StackNavigationProp<
 
 // We don't need to combine them for useNavigation if we use getParent()
 // type CombinedNavigationProp = ParentDashboardNavigationProp & BottomTabNavigationProp<ParentTabParamList>;
+
+// Define event data types
+interface ScoreUpdateEventData {
+	studentId: string
+	scoreId: string
+	score: number
+}
+
+interface AttendanceUpdateEventData {
+	studentId: string
+	attendanceId: string
+	status: string
+}
 
 const formatDate = (dateString: string) => {
 	const date = new Date(dateString)
@@ -104,15 +124,35 @@ const getChildAvatar = (firstName: string, lastName: string) => {
 }
 
 const ParentDashboardScreen = () => {
-
 	const [children, setChildren] = useState<ChildData[]>([])
 	const [notifications, setNotifications] = useState<ParentNotification[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
+	const [expandedChildIds, setExpandedChildIds] = useState<string[]>([])
+	const [loadingChildIds, setLoadingChildIds] = useState<string[]>([])
+	const [animationValues, setAnimationValues] = useState<{ [key: string]: Animated.Value }>({})
 
 	const navigation = useNavigation<ParentDashboardNavigationProp>()
 	const { user } = useAuthStore()
 	const { theme } = useAppTheme()
+	const {
+		notifications: unifiedNotifications,
+		unreadCount,
+		markAsRead,
+		loadNotifications,
+		addNotification,
+		bulkAddNotifications,
+		clearAllNotifications,
+	} = useUnifiedNotificationStore()
+
+	// Initialize animation values when children data is loaded
+	useEffect(() => {
+		const animValues: { [key: string]: Animated.Value } = {}
+		children.forEach(child => {
+			animValues[child.id] = new Animated.Value(0) // 0 = collapsed, 1 = expanded
+		})
+		setAnimationValues(animValues)
+	}, [children])
 
 	// Get read announcements from AsyncStorage
 	useEffect(() => {
@@ -135,6 +175,16 @@ const ParentDashboardScreen = () => {
 					setError('User not authenticated. Please log in again.')
 					setLoading(false)
 					return
+				}
+
+				// Load notifications from the store
+				await loadNotifications()
+
+				// Fetch unified notifications from Supabase
+				const supabaseNotifications = await fetchUnifiedNotifications(user.id)
+				if (supabaseNotifications.length > 0) {
+					// Add all notifications to the store in bulk
+					bulkAddNotifications(supabaseNotifications)
 				}
 
 				// Get read notification states
@@ -163,37 +213,51 @@ const ParentDashboardScreen = () => {
 		}
 
 		loadData()
-	}, [user])
+
+		// Listen for score and attendance updates
+		const scoreUpdateListener = (data: ScoreUpdateEventData) => {
+			console.log('[ParentDashboard] Score updated, refreshing data:', data)
+			loadData() // Refresh child data when scores are updated
+		}
+
+		const attendanceUpdateListener = (data: AttendanceUpdateEventData) => {
+			console.log('[ParentDashboard] Attendance updated, refreshing data:', data)
+			loadData() // Refresh child data when attendance is updated
+		}
+
+		// Add event listeners
+		eventEmitter.on(EVENTS.SCORE_UPDATED, scoreUpdateListener)
+		eventEmitter.on(EVENTS.ATTENDANCE_UPDATED, attendanceUpdateListener)
+
+		return () => {
+			// Clean up listeners
+			eventEmitter.off(EVENTS.SCORE_UPDATED, scoreUpdateListener)
+			eventEmitter.off(EVENTS.ATTENDANCE_UPDATED, attendanceUpdateListener)
+		}
+	}, [])
 
 	// Handle notification press
-	const handleNotificationPress = async (notification: ParentNotification) => {
+	const handleNotificationPress = (notification: NotificationItem) => {
 		try {
 			// Skip if already read
 			if (notification.read) return
 
-			// Mark as read in AsyncStorage
-			const readNotificationsJson = await AsyncStorage.getItem('readParentNotifications')
-			const readNotifications = readNotificationsJson ? JSON.parse(readNotificationsJson) : {}
-
-			// Update the read status
-			readNotifications[notification.id] = true
-			await AsyncStorage.setItem('readParentNotifications', JSON.stringify(readNotifications))
-
-			// Try to mark as read on server (though this might be a no-op now)
-			await markParentNotificationAsRead(notification.id)
-
-			// Update local state
-			setNotifications(prev => prev.map(n => (n.id === notification.id ? { ...n, read: true } : n)))
+			// Mark as read in store
+			markAsRead(notification.id)
 
 			// Navigate based on notification type
-			if (
-				notification.type === 'grade' &&
-				notification.relatedStudentId &&
-				notification.relatedSubjectId
-			) {
-				const child = children.find(c => c.id === notification.relatedStudentId)
+			if (notification.type === 'score' && notification.studentId) {
+				const child = children.find(c => c.id === notification.studentId)
 				if (child) {
 					navigation.navigate('ParentChildGrades', {
+						childId: child.id,
+						childName: `${child.firstName} ${child.lastName}`,
+					})
+				}
+			} else if (notification.type === 'attendance' && notification.studentId) {
+				const child = children.find(c => c.id === notification.studentId)
+				if (child) {
+					navigation.navigate('ParentSchedule', {
 						childId: child.id,
 						childName: `${child.firstName} ${child.lastName}`,
 					})
@@ -230,78 +294,217 @@ const ParentDashboardScreen = () => {
 		}
 	}
 
-	// Render child item
-	const renderChildItem = ({ item }: { item: ChildData }) => (
-		<TouchableOpacity 
-			onPress={() => navigateToChildGrades(item)} 
-			style={[styles.childCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
-		>
-			<View style={styles.childInfoContainer}>
-				{item.avatar ? (
-					<Image source={{ uri: item.avatar }} style={styles.avatar} />
-				) : (
-					getChildAvatar(item.firstName, item.lastName)
-				)}
-				<View style={styles.childDetails}>
-					<Text style={[styles.childName, { color: theme.text }]}>{`${item.firstName} ${item.lastName}`}</Text>
-					{item.className && <Text style={[styles.childClass, { color: theme.textSecondary }]}>{item.className}</Text>}
-				</View>
-			</View>
-			<View style={[styles.childActionsContainer, { borderTopColor: theme.separator }]}>
-				<TouchableOpacity
-					style={[styles.actionButton, styles.gradesButton]}
-					onPress={() => navigateToChildGrades(item)}
-				>
-					<Icon name='bar-chart-2' size={16} color='#FFF' />
-					<Text style={styles.actionButtonText}>View Grades</Text>
-				</TouchableOpacity>
-				<TouchableOpacity
-					style={[styles.actionButton, styles.scheduleButton]}
-					onPress={() => navigateToChildSchedule(item)}
-				>
-					<Icon name='calendar' size={16} color='#FFF' />
-					<Text style={styles.actionButtonText}>View Schedule</Text>
-				</TouchableOpacity>
-			</View>
-		</TouchableOpacity>
-	)
+	// Handle new notification from UnifiedNotificationHandler
+	const handleNewNotification = (notification: NotificationItem) => {
+		// Add notification to the store
+		addNotification(notification)
 
-	// Render notification item
-	const renderNotificationItem = ({ item }: { item: ParentNotification }) => (
-		<TouchableOpacity
-			style={[
-				styles.notificationItem,
-				{ 
-					backgroundColor: theme.cardBackground,
-					borderColor: theme.border,
-					shadowColor: theme.text
+		// Update activity indicators if needed
+		if (notification.studentId) {
+			// If the notification is related to a specific child, and their card is collapsed,
+			// this will trigger a UI update to show the activity indicator
+			setExpandedChildIds([...expandedChildIds])
+		}
+	}
+
+	// Modify the toggle function to include animation
+	const toggleChildExpansion = async (childId: string) => {
+		const isExpanding = !expandedChildIds.includes(childId)
+
+		if (isExpanding) {
+			// Expand: First update state, then animate
+			setExpandedChildIds(prev => [...prev, childId])
+			setLoadingChildIds(prev => [...prev, childId])
+
+			// Animate to expanded state
+			Animated.timing(animationValues[childId], {
+				toValue: 1,
+				duration: 300,
+				useNativeDriver: false,
+			}).start()
+
+			// Simulate data loading delay (remove this in production)
+			await new Promise(resolve => setTimeout(resolve, 500))
+
+			// Remove loading state
+			setLoadingChildIds(prev => prev.filter(id => id !== childId))
+		} else {
+			// Collapse: First animate, then update state
+			Animated.timing(animationValues[childId], {
+				toValue: 0,
+				duration: 300,
+				useNativeDriver: false,
+			}).start(() => {
+				// Update state after animation finishes
+				setExpandedChildIds(expandedChildIds.filter(id => id !== childId))
+			})
+		}
+	}
+
+	// Add this function to determine if a child has recent activity
+	const hasRecentActivity = (childId: string) => {
+		// Check if there are any unread notifications for this child
+		return unifiedNotifications.some(
+			notification => notification.studentId === childId && !notification.read
+		)
+	}
+
+	// Modify the renderChildItem function
+	const renderChildItem = ({ item }: { item: ChildData }) => {
+		const isExpanded = expandedChildIds.includes(item.id)
+		const isLoading = loadingChildIds.includes(item.id)
+		const hasActivity = hasRecentActivity(item.id)
+
+		// Only render if animation is initialized
+		if (!animationValues[item.id]) return null
+
+		const maxHeight = animationValues[item.id].interpolate({
+			inputRange: [0, 1],
+			outputRange: [0, 500], // Use a large enough value to contain all content
+			extrapolate: 'clamp',
+		})
+
+		const opacity = animationValues[item.id].interpolate({
+			inputRange: [0, 0.5, 1],
+			outputRange: [0, 0.8, 1],
+		})
+
+		const rotateAnimation = animationValues[item.id].interpolate({
+			inputRange: [0, 1],
+			outputRange: ['0deg', '180deg'],
+		})
+
+		return (
+			<View
+				style={[
+					styles.childCard,
+					{ backgroundColor: theme.cardBackground, borderColor: theme.border },
+				]}
+			>
+				<TouchableOpacity
+					onPress={() => toggleChildExpansion(item.id)}
+					style={styles.childHeader}
+					activeOpacity={0.7}
+				>
+					<View style={styles.childInfoContainer}>
+						<View style={styles.avatarContainer}>
+							{item.avatar ? (
+								<Image source={{ uri: item.avatar }} style={styles.avatar} />
+							) : (
+								getChildAvatar(item.firstName, item.lastName)
+							)}
+							{hasActivity && !isExpanded && <View style={styles.activityIndicator} />}
+						</View>
+						<View style={styles.childDetails}>
+							<Text
+								style={[styles.childName, { color: theme.text }]}
+							>{`${item.firstName} ${item.lastName}`}</Text>
+							{item.className && (
+								<Text style={[styles.childClass, { color: theme.textSecondary }]}>
+									{item.className}
+								</Text>
+							)}
+							{hasActivity && !isExpanded && (
+								<Text style={styles.newActivityText}>New activity</Text>
+							)}
+						</View>
+						<Animated.View style={{ transform: [{ rotate: rotateAnimation }] }}>
+							<Icon name='chevron-down' size={20} color={theme.textSecondary} />
+						</Animated.View>
+					</View>
+				</TouchableOpacity>
+
+				<Animated.View
+					style={[
+						styles.childContent,
+						{
+							maxHeight,
+							opacity,
+							overflow: 'hidden',
+						},
+					]}
+				>
+					{isLoading ? (
+						<View style={styles.loadingContainer}>
+							<ActivityIndicator size='small' color={theme.primary} />
+							<Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+								Loading data...
+							</Text>
+						</View>
+					) : (
+						<>
+							{/* Student Performance Summary */}
+							<StudentPerformanceSummary
+								studentId={item.id}
+								studentName={`${item.firstName} ${item.lastName}`}
+							/>
+
+							<View style={[styles.childActionsContainer, { borderTopColor: theme.separator }]}>
+								<TouchableOpacity
+									style={[styles.actionButton, styles.gradesButton]}
+									onPress={() => navigateToChildGrades(item)}
+								>
+									<Icon name='bar-chart-2' size={16} color='#FFF' />
+									<Text style={styles.actionButtonText}>View Grades</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={[styles.actionButton, styles.scheduleButton]}
+									onPress={() => navigateToChildSchedule(item)}
+								>
+									<Icon name='calendar' size={16} color='#FFF' />
+									<Text style={styles.actionButtonText}>View Schedule</Text>
+								</TouchableOpacity>
+							</View>
+						</>
+					)}
+				</Animated.View>
+			</View>
+		)
+	}
+
+	// Function to clear all AsyncStorage data
+	const clearAllData = () => {
+		Alert.alert(
+			'Clear All Data',
+			'Are you sure you want to clear all locally stored data? This will remove all notifications and preferences.',
+			[
+				{ text: 'Cancel', style: 'cancel' },
+				{
+					text: 'Clear Data',
+					style: 'destructive',
+					onPress: async () => {
+						try {
+							// Clear unified notifications from the store
+							clearAllNotifications()
+
+							// Clear read parent notifications
+							await AsyncStorage.removeItem('readParentNotifications')
+
+							// Add any other AsyncStorage keys that need to be cleared
+
+							// Show success message
+							Alert.alert('Success', 'All data has been cleared successfully')
+
+							// Reload data
+							setLoading(true)
+						} catch (err) {
+							console.error('Error clearing data:', err)
+							Alert.alert('Error', 'Failed to clear data. Please try again.')
+						}
+					},
 				},
-				item.read ? { opacity: 0.8 } : {}
-			]}
-			onPress={() => handleNotificationPress(item)}
-		>
-			<View style={[styles.notificationIcon, { backgroundColor: getNotificationColor(item.type) }]}>
-				<Icon name={getNotificationIcon(item.type)} size={16} color='#FFFFFF' />
-			</View>
-
-			<View style={styles.notificationContent}>
-				<Text style={[styles.notificationTitle, { color: theme.text }]}>{item.title}</Text>
-				<Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
-					{item.message}
-				</Text>
-				<Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
-			</View>
-
-			{!item.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />}
-		</TouchableOpacity>
-	)
+			]
+		)
+	}
 
 	if (loading) {
 		return (
 			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 				<View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
 					<ActivityIndicator size='large' color={theme.primary} />
-					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading dashboard...</Text>
+					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+						Loading dashboard...
+					</Text>
 				</View>
 			</SafeAreaView>
 		)
@@ -313,7 +516,10 @@ const ParentDashboardScreen = () => {
 				<View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
 					<Icon name='alert-circle' size={50} color={theme.danger} />
 					<Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
-					<TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.primary }]} onPress={() => setLoading(true)}>
+					<TouchableOpacity
+						style={[styles.retryButton, { backgroundColor: theme.primary }]}
+						onPress={() => setLoading(true)}
+					>
 						<Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>Retry</Text>
 					</TouchableOpacity>
 				</View>
@@ -321,18 +527,25 @@ const ParentDashboardScreen = () => {
 		)
 	}
 
-	const unreadCount = notifications.filter(n => !n.read).length
-
 	return (
 		<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-			<RealtimeScoreNotifications />
+			<RealtimeScoreNotifications onNewNotification={handleNewNotification} />
 
 			<ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]}>
 				{/* Parent Welcome Header */}
 				<View style={[styles.header, { backgroundColor: theme.primary }]}>
-					<View>
-						<Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Parent Dashboard</Text>
-						<Text style={[styles.headerSubtitle, { color: 'rgba(255, 255, 255, 0.8)' }]}>Monitor your children's progress</Text>
+					<View style={styles.headerContent}>
+						<View>
+							<Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Parent Dashboard</Text>
+							<Text style={[styles.headerSubtitle, { color: 'rgba(255, 255, 255, 0.8)' }]}>
+								Monitor your children's progress
+							</Text>
+						</View>
+
+						<TouchableOpacity style={styles.clearDataButton} onPress={clearAllData}>
+							<Icon name='trash-2' size={16} color='#FFFFFF' />
+							<Text style={styles.clearDataText}>Clear Data</Text>
+						</TouchableOpacity>
 					</View>
 				</View>
 
@@ -347,7 +560,9 @@ const ParentDashboardScreen = () => {
 						scrollEnabled={false}
 						ListEmptyComponent={() => (
 							<View style={styles.emptyContainer}>
-								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No children found</Text>
+								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+									No children found
+								</Text>
 							</View>
 						)}
 					/>
@@ -369,17 +584,35 @@ const ParentDashboardScreen = () => {
 						</TouchableOpacity>
 					</View>
 
-					<FlatList
-						data={notifications.slice(0, 3)}
-						renderItem={renderNotificationItem}
-						keyExtractor={item => item.id}
-						scrollEnabled={false}
-						ListEmptyComponent={() => (
-							<View style={styles.emptyContainer}>
-								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No notifications</Text>
-							</View>
-						)}
-					/>
+					{unifiedNotifications.length > 0 ? (
+						<View style={styles.notificationsContainer}>
+							{unifiedNotifications.slice(0, 3).map(notification => (
+								<NotificationCard
+									key={notification.id}
+									notification={notification}
+									onPress={() => handleNotificationPress(notification)}
+									compact={true}
+								/>
+							))}
+
+							{unifiedNotifications.length > 3 && (
+								<TouchableOpacity
+									style={[styles.moreNotificationsButton, { borderColor: theme.border }]}
+									onPress={handleViewAllNotifications}
+								>
+									<Text style={[styles.moreNotificationsText, { color: theme.primary }]}>
+										See {unifiedNotifications.length - 3} more notifications
+									</Text>
+								</TouchableOpacity>
+							)}
+						</View>
+					) : (
+						<View style={styles.emptyContainer}>
+							<Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+								No notifications
+							</Text>
+						</View>
+					)}
 				</View>
 			</ScrollView>
 		</SafeAreaView>
@@ -401,6 +634,11 @@ const styles = StyleSheet.create({
 		padding: 20,
 		paddingTop: 40,
 		paddingBottom: 30,
+	},
+	headerContent: {
+		flexDirection: 'row',
+		justifyContent: 'space-between',
+		alignItems: 'center',
 	},
 	headerTitle: {
 		fontSize: 24,
@@ -450,30 +688,39 @@ const styles = StyleSheet.create({
 	childCard: {
 		backgroundColor: '#FFFFFF',
 		borderRadius: 10,
-		padding: 15,
 		marginBottom: 15,
 		shadowColor: '#000',
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 0.1,
 		shadowRadius: 4,
 		elevation: 3,
+		overflow: 'hidden',
+	},
+	childHeader: {
+		padding: 15,
+	},
+	childContent: {
+		padding: 0,
+		paddingHorizontal: 15,
+		paddingBottom: 15,
 	},
 	childInfoContainer: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		marginBottom: 10,
+	},
+	avatarContainer: {
+		position: 'relative',
+		marginRight: 15,
 	},
 	avatar: {
 		width: 50,
 		height: 50,
 		borderRadius: 25,
-		marginRight: 15,
 	},
 	avatarPlaceholder: {
 		width: 50,
 		height: 50,
 		borderRadius: 25,
-		marginRight: 15,
 		backgroundColor: '#007AFF',
 		justifyContent: 'center',
 		alignItems: 'center',
@@ -528,68 +775,17 @@ const styles = StyleSheet.create({
 		fontWeight: '500',
 		marginLeft: 6,
 	},
-	notificationItem: {
-		backgroundColor: '#FFFFFF',
-		borderRadius: 10,
-		padding: 12,
-		marginBottom: 10,
-		flexDirection: 'row',
-		alignItems: 'center',
-		shadowColor: '#000',
-		shadowOffset: { width: 0, height: 1 },
-		shadowOpacity: 0.05,
-		shadowRadius: 1,
-		elevation: 1,
-	},
-	notificationUnread: {
-		backgroundColor: '#FFFFFF',
-	},
-	notificationRead: {
-		backgroundColor: '#F8F9FA',
-	},
-	notificationIcon: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		backgroundColor: '#4A90E2',
-		justifyContent: 'center',
-		alignItems: 'center',
-		marginRight: 12,
-	},
-	notificationContent: {
-		flex: 1,
-	},
-	notificationTitle: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: '#333333',
-		marginBottom: 2,
-	},
-	notificationMessage: {
-		fontSize: 12,
-		color: '#666666',
-		marginBottom: 4,
-	},
-	notificationDate: {
-		fontSize: 10,
-		color: '#999999',
-	},
-	unreadIndicator: {
-		width: 10,
-		height: 10,
-		borderRadius: 5,
-		backgroundColor: '#4A90E2',
-		marginLeft: 8,
+	notificationsContainer: {
+		marginTop: 4,
 	},
 	loadingContainer: {
-		flex: 1,
-		justifyContent: 'center',
+		padding: 20,
 		alignItems: 'center',
-		backgroundColor: '#F5F7FA',
+		justifyContent: 'center',
 	},
 	loadingText: {
-		marginTop: 10,
-		fontSize: 16,
+		marginTop: 8,
+		fontSize: 14,
 		color: '#666',
 	},
 	errorContainer: {
@@ -626,6 +822,46 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		color: '#999',
 		textAlign: 'center',
+	},
+	moreNotificationsButton: {
+		borderWidth: 1,
+		borderColor: '#E0E0E0',
+		borderRadius: 8,
+		padding: 8,
+		alignItems: 'center',
+		marginTop: 8,
+	},
+	moreNotificationsText: {
+		color: '#4A90E2',
+		fontSize: 12,
+	},
+	activityIndicator: {
+		position: 'absolute',
+		width: 12,
+		height: 12,
+		backgroundColor: '#F44336',
+		borderRadius: 6,
+		borderWidth: 2,
+		borderColor: '#FFFFFF',
+		top: 0,
+		right: 0,
+	},
+	newActivityText: {
+		fontSize: 12,
+		color: '#F44336',
+		fontWeight: '500',
+	},
+	clearDataButton: {
+		backgroundColor: 'rgba(0,0,0,0.2)',
+		borderRadius: 8,
+		padding: 8,
+		flexDirection: 'row',
+		alignItems: 'center',
+	},
+	clearDataText: {
+		color: '#FFFFFF',
+		fontSize: 12,
+		marginLeft: 4,
 	},
 })
 

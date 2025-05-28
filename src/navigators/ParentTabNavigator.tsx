@@ -1,117 +1,136 @@
-import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { NavigatorScreenParams } from '@react-navigation/native';
-import { useAppTheme } from '../contexts/ThemeContext';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { NavigatorScreenParams } from '@react-navigation/native'
+import { createStackNavigator } from '@react-navigation/stack'
+import React from 'react'
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'
+import { useAppTheme } from '../contexts/ThemeContext'
+import { useUnifiedNotificationStore } from '../store/unifiedNotificationStore'
 
 // Import Parent Screens
-import ParentDashboardScreen from '../screens/parent/ParentDashboardScreen';
-import ParentNotificationsScreen from '../screens/parent/ParentNotificationsScreen';
-import ParentSettingsScreen from '../screens/parent/ParentSettingsScreen';
-import ParentChildGradesScreen from '../screens/parent/ParentChildGradesScreen';
-import ParentSubjectGradesScreen from '../screens/parent/ParentSubjectGradesScreen';
-import ParentAssignmentDetailScreen from '../screens/parent/ParentAssignmentDetailScreen';
-import ParentScheduleScreen from '../screens/parent/ParentScheduleScreen';
-import EditProfileScreen from '../screens/parent/EditProfileScreen';
-import ChangePasswordScreen from '../screens/parent/ChangePasswordScreen';
-import ParentSubjectDetailScreen from '../screens/parent/ParentSubjectDetailScreen';
+import ChangePasswordScreen from '../screens/parent/ChangePasswordScreen'
+import EditProfileScreen from '../screens/parent/EditProfileScreen'
+import ParentAssignmentDetailScreen from '../screens/parent/ParentAssignmentDetailScreen'
+import ParentChildGradesScreen from '../screens/parent/ParentChildGradesScreen'
+import ParentDashboardScreen from '../screens/parent/ParentDashboardScreen'
+import ParentNotificationsScreen from '../screens/parent/ParentNotificationsScreen'
+import ParentScheduleScreen from '../screens/parent/ParentScheduleScreen'
+import ParentSettingsScreen from '../screens/parent/ParentSettingsScreen'
+import ParentSubjectDetailScreen from '../screens/parent/ParentSubjectDetailScreen'
+import ParentSubjectGradesScreen from '../screens/parent/ParentSubjectGradesScreen'
 
 // Define Param Lists
 export type ParentHomeStackParamList = {
-  ParentDashboard: undefined;
-  ParentChildGrades: { childId: string; childName: string };
-  ParentSubjectGrades: { childId: string; childName: string; subjectId: string; subjectName: string };
-  ParentAssignmentDetail: { assignmentId: string; childId: string; childName?: string; assignmentTitle?: string };
-  ParentSchedule: { childId: string; childName?: string };
-  SubjectDetail: { 
-    childId: string; 
-    parentId: string; 
-    subjectId: string; 
-    subjectName: string 
-  };
-  // Add other screens that can be navigated to from the dashboard/home flow
-};
+	ParentDashboard: undefined
+	ParentChildGrades: { childId: string; childName: string }
+	ParentSubjectGrades: {
+		childId: string
+		childName: string
+		subjectId: string
+		subjectName: string
+	}
+	ParentAssignmentDetail: {
+		assignmentId: string
+		childId: string
+		childName?: string
+		assignmentTitle?: string
+	}
+	ParentSchedule: { childId: string; childName?: string }
+	SubjectDetail: {
+		childId: string
+		parentId: string
+		subjectId: string
+		subjectName: string
+	}
+	// Add other screens that can be navigated to from the dashboard/home flow
+}
 
 // Define Settings Stack Param List
 export type SettingsStackParamList = {
-  ParentSettings: undefined;
-  EditProfile: undefined;
-  ChangePassword: undefined;
-  // Add other settings-related screens here, e.g., ChangePassword
-};
+	ParentSettings: undefined
+	EditProfile: undefined
+	ChangePassword: undefined
+	// Add other settings-related screens here, e.g., ChangePassword
+}
 
 export type ParentTabParamList = {
-  Home: NavigatorScreenParams<ParentHomeStackParamList> | undefined;
-  Notifications: undefined;
-  Schedule: { childId?: string; childName?: string };
-  Settings: NavigatorScreenParams<SettingsStackParamList>;
-};
+	Home: NavigatorScreenParams<ParentHomeStackParamList> | undefined
+	Notifications: undefined
+	Schedule: { childId?: string; childName?: string }
+	Settings: NavigatorScreenParams<SettingsStackParamList>
+}
 
-const Tab = createBottomTabNavigator<ParentTabParamList>();
-const HomeStack = createStackNavigator<ParentHomeStackParamList>();
-const SettingsStack = createStackNavigator<SettingsStackParamList>();
+const Tab = createBottomTabNavigator<ParentTabParamList>()
+const HomeStack = createStackNavigator<ParentHomeStackParamList>()
+const SettingsStack = createStackNavigator<SettingsStackParamList>()
 
 // Home Stack Navigator (for screens accessible from the Home tab)
 const HomeStackNavigator = () => {
-  return (
-    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-      <HomeStack.Screen name="ParentDashboard" component={ParentDashboardScreen} />
-      <HomeStack.Screen name="ParentChildGrades" component={ParentChildGradesScreen} />
-      <HomeStack.Screen name="ParentSubjectGrades" component={ParentSubjectGradesScreen} />
-      <HomeStack.Screen name="ParentAssignmentDetail" component={ParentAssignmentDetailScreen} />
-      <HomeStack.Screen name="ParentSchedule" component={ParentScheduleScreen} />
-      <HomeStack.Screen name="SubjectDetail" component={ParentSubjectDetailScreen} />
-    </HomeStack.Navigator>
-  );
-};
+	return (
+		<HomeStack.Navigator screenOptions={{ headerShown: false }}>
+			<HomeStack.Screen name='ParentDashboard' component={ParentDashboardScreen} />
+			<HomeStack.Screen name='ParentChildGrades' component={ParentChildGradesScreen} />
+			<HomeStack.Screen name='ParentSubjectGrades' component={ParentSubjectGradesScreen} />
+			<HomeStack.Screen name='ParentAssignmentDetail' component={ParentAssignmentDetailScreen} />
+			<HomeStack.Screen name='ParentSchedule' component={ParentScheduleScreen} />
+			<HomeStack.Screen name='SubjectDetail' component={ParentSubjectDetailScreen} />
+		</HomeStack.Navigator>
+	)
+}
 
 // Settings Stack Navigator
 const SettingsStackNavigator = () => {
-  return (
-    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
-      <SettingsStack.Screen name="ParentSettings" component={ParentSettingsScreen} />
-      <SettingsStack.Screen name="EditProfile" component={EditProfileScreen} />
-      <SettingsStack.Screen name="ChangePassword" component={ChangePasswordScreen} />
-    </SettingsStack.Navigator>
-  );
-};
+	return (
+		<SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+			<SettingsStack.Screen name='ParentSettings' component={ParentSettingsScreen} />
+			<SettingsStack.Screen name='EditProfile' component={EditProfileScreen} />
+			<SettingsStack.Screen name='ChangePassword' component={ChangePasswordScreen} />
+		</SettingsStack.Navigator>
+	)
+}
 
 const ParentTabNavigator = () => {
-  const { theme } = useAppTheme();
-  
-  return (
-    <Tab.Navigator
-      initialRouteName="Home"
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.textSecondary,
-        tabBarStyle: {
-          backgroundColor: theme.cardBackground,
-          borderTopColor: theme.border,
-        },
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Notifications') {
-            iconName = focused ? 'bell' : 'bell-outline';
-          } else if (route.name === 'Schedule') {
-            iconName = focused ? 'calendar-month' : 'calendar-month-outline';
-          } else if (route.name === 'Settings') {
-            iconName = focused ? 'cog' : 'cog-outline';
-          }
-          return <MaterialCommunityIcons name={iconName as string} size={size} color={color} />;
-        },
-      })}
-    >
-      <Tab.Screen name="Home" component={HomeStackNavigator} />
-      <Tab.Screen name="Notifications" component={ParentNotificationsScreen} />
-      <Tab.Screen name="Schedule" component={ParentScheduleScreen} />
-      <Tab.Screen name="Settings" component={SettingsStackNavigator} />
-    </Tab.Navigator>
-  );
-};
+	const { theme } = useAppTheme()
+	const { unreadCount } = useUnifiedNotificationStore()
 
-export default ParentTabNavigator; 
+	return (
+		<Tab.Navigator
+			initialRouteName='Home'
+			screenOptions={({ route }) => ({
+				headerShown: false,
+				tabBarActiveTintColor: theme.primary,
+				tabBarInactiveTintColor: theme.textSecondary,
+				tabBarStyle: {
+					backgroundColor: theme.cardBackground,
+					borderTopColor: theme.separator,
+				},
+				tabBarIcon: ({ focused, color, size }) => {
+					let iconName
+					if (route.name === 'Home') {
+						iconName = focused ? 'home' : 'home-outline'
+					} else if (route.name === 'Notifications') {
+						iconName = focused ? 'bell' : 'bell-outline'
+					} else if (route.name === 'Schedule') {
+						iconName = focused ? 'calendar-month' : 'calendar-month-outline'
+					} else if (route.name === 'Settings') {
+						iconName = focused ? 'cog' : 'cog-outline'
+					}
+					return <MaterialCommunityIcons name={iconName as string} size={size} color={color} />
+				},
+			})}
+		>
+			<Tab.Screen name='Home' component={HomeStackNavigator} />
+			<Tab.Screen
+				name='Notifications'
+				component={ParentNotificationsScreen}
+				options={{
+					tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+					tabBarBadgeStyle: { backgroundColor: theme.danger },
+				}}
+			/>
+			<Tab.Screen name='Schedule' component={ParentScheduleScreen} />
+			<Tab.Screen name='Settings' component={SettingsStackNavigator} />
+		</Tab.Navigator>
+	)
+}
+
+export default ParentTabNavigator

@@ -15,10 +15,11 @@ export interface GradeItem extends Omit<ExportedGradeItem, 'id' | 'type'> {
 	attendance?: string | undefined // Allow null for attendance again
 }
 
-export interface SubjectGrade extends Omit<ExportedSubjectGrade, 'grades' | 'id'> { // Omitted 'id' here
-	id: string; // Changed from number to string
-	subjectName: string;
-	teacherName: string;
+export interface SubjectGrade extends Omit<ExportedSubjectGrade, 'grades' | 'id'> {
+	// Omitted 'id' here
+	id: string // Changed from number to string
+	subjectName: string
+	teacherName: string
 	className: string
 	color: string
 	averageGrade: string
@@ -704,7 +705,7 @@ export const fetchChildGrades = async (childId: string): Promise<SubjectGrade[]>
 		// Add dummy data if nothing found
 		if (subjects.length === 0) {
 			subjects.push({
-				id: "-1", // Use string ID for dummy data
+				id: '-1', // Use string ID for dummy data
 				subjectName: 'No Subjects Found',
 				teacherName: 'Check Database',
 				className: 'Database Error',
@@ -1438,9 +1439,17 @@ export const fetchParentChildrenWithResults = async (parentId: string) => {
 }
 
 // Fetch detailed subject grades for a specific child of a parent
-export const fetchParentChildSubjectGrades = async (childId: string, parentId: string, subjectId?: string) => {
+export const fetchParentChildSubjectGrades = async (
+	childId: string,
+	parentId: string,
+	subjectId?: string
+) => {
 	try {
-		console.log(`Fetching subject grades for child ${childId} of parent ${parentId}${subjectId ? ` for subject ${subjectId}` : ''}`)
+		console.log(
+			`Fetching subject grades for child ${childId} of parent ${parentId}${
+				subjectId ? ` for subject ${subjectId}` : ''
+			}`
+		)
 
 		// First verify this child belongs to the parent
 		const { data: child, error: childError } = await supabase
@@ -1494,7 +1503,7 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
       `
 			)
 			.in('classid', classIds)
-		
+
 		// Apply subject filter if provided
 		if (subjectId) {
 			classSubjectsQuery = classSubjectsQuery.eq('subjectid', subjectId)
@@ -1573,10 +1582,10 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 						teacherName,
 						className,
 						color: '#4A90E2',
-							hasGrades: false,
-							averageGrade: 'N/A',
-							numericGrade: 0,
-							grades: [],
+						hasGrades: false,
+						averageGrade: 'N/A',
+						numericGrade: 0,
+						grades: [],
 					})
 				}
 			}
@@ -1766,7 +1775,7 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 		// Add dummy data if nothing found
 		if (subjects.length === 0) {
 			subjects.push({
-				id: "-1", // Use string ID for dummy data
+				id: '-1', // Use string ID for dummy data
 				subjectName: 'No Subjects Found',
 				teacherName: 'Check Database',
 				className: 'Database Error',
@@ -1786,24 +1795,30 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 }
 
 // New function to fetch grades for a specific subject
-export const fetchParentChildSubjectGradesForSubject = async (childId: string, parentId: string, subjectId: string): Promise<SubjectGrade | null> => {
+export const fetchParentChildSubjectGradesForSubject = async (
+	childId: string,
+	parentId: string,
+	subjectId: string
+): Promise<SubjectGrade | null> => {
 	try {
-		console.log(`Fetching grades for child ${childId} of parent ${parentId} for subject ${subjectId}`)
-		
+		console.log(
+			`Fetching grades for child ${childId} of parent ${parentId} for subject ${subjectId}`
+		)
+
 		// Validate subjectId to ensure it's not "0" or an invalid UUID
-		if (!subjectId || subjectId === "0") {
+		if (!subjectId || subjectId === '0') {
 			console.error(`Invalid subjectId provided: ${subjectId}`)
-			throw new Error("Invalid subject ID provided")
+			throw new Error('Invalid subject ID provided')
 		}
-		
+
 		// Use the existing function with the subjectId parameter
 		const subjectResults = await fetchParentChildSubjectGrades(childId, parentId, subjectId)
-		
+
 		if (!subjectResults || subjectResults.length === 0) {
 			console.log(`No subject grades found for subject ${subjectId}`)
 			return null
 		}
-		
+
 		// Return the first (and should be only) subject in the result
 		return subjectResults[0]
 	} catch (error) {
@@ -1814,17 +1829,17 @@ export const fetchParentChildSubjectGradesForSubject = async (childId: string, p
 
 // Fetch assignments for a specific subject
 export const fetchParentChildAssignmentsForSubject = async (
-	childId: string, 
-	parentId: string, 
+	childId: string,
+	parentId: string,
 	subjectId: string
 ): Promise<ChildAssignment[]> => {
 	try {
 		// Validate subjectId to ensure it's not "0" or an invalid UUID
-		if (!subjectId || subjectId === "0") {
+		if (!subjectId || subjectId === '0') {
 			console.error(`Invalid subjectId provided: ${subjectId}`)
-			throw new Error("Invalid subject ID provided")
+			throw new Error('Invalid subject ID provided')
 		}
-		
+
 		// First, ensure the child belongs to the parent
 		const { data: childRelation, error: childRelationError } = await supabase
 			.from('users')
@@ -1834,7 +1849,10 @@ export const fetchParentChildAssignmentsForSubject = async (
 			.single()
 
 		if (childRelationError || !childRelation) {
-			console.error('Child does not belong to parent or error fetching relation:', childRelationError)
+			console.error(
+				'Child does not belong to parent or error fetching relation:',
+				childRelationError
+			)
 			throw new Error("This child doesn't belong to the specified parent")
 		}
 
@@ -1871,7 +1889,7 @@ export const fetchParentChildAssignmentsForSubject = async (
 			`
 			)
 			.in('classid', classIds)
-			.eq('subject_id', subjectId)  // Filter by subject_id
+			.eq('subject_id', subjectId) // Filter by subject_id
 
 		if (assignmentsError) {
 			console.error('Error fetching assignments for subject:', subjectId, assignmentsError)
@@ -1942,17 +1960,19 @@ export const fetchParentChildAssignmentsForSubject = async (
 
 // Fetch attendance records for a specific subject
 export const fetchParentChildAttendanceForSubject = async (
-	childId: string, 
+	childId: string,
 	parentId: string,
 	subjectId: string
 ) => {
 	try {
-		console.log(`Fetching attendance for child ${childId} of parent ${parentId} for subject ${subjectId}`)
+		console.log(
+			`Fetching attendance for child ${childId} of parent ${parentId} for subject ${subjectId}`
+		)
 
 		// Validate subjectId to ensure it's not "0" or an invalid UUID
-		if (!subjectId || subjectId === "0") {
+		if (!subjectId || subjectId === '0') {
 			console.error(`Invalid subjectId provided: ${subjectId}`)
-			throw new Error("Invalid subject ID provided")
+			throw new Error('Invalid subject ID provided')
 		}
 
 		// Verify parent relationship
@@ -1999,53 +2019,55 @@ export const fetchParentChildAttendanceForSubject = async (
 		}
 
 		// Filter attendance records by subject ID
-		const attendanceRecords = data?.filter(record => {
-				let lessonData: any = null;
-				if (Array.isArray(record.lesson)) {
-					lessonData = record.lesson[0] || null;
-				} else {
-					lessonData = record.lesson || null;
-				}
-				
-				return lessonData && lessonData.subjectid === subjectId;
-			})
-			.map(record => {
-				// Based on linter, record.lesson could be an array of lessons
-				let lessonData: {
-					id: any
-					lessonname: string
-					date: string
-					subjectid: string
-					subject:
-						| { id: string; subjectname: string }[]
-						| { id: string; subjectname: string }
-						| null
-				} | null = null
-
-				if (Array.isArray(record.lesson)) {
-					lessonData = record.lesson[0] || null
-				} else {
-					lessonData = (record.lesson as any) || null
-				}
-
-				let finalSubjectName = 'Unknown Subject'
-				if (lessonData?.subject) {
-					if (Array.isArray(lessonData.subject)) {
-						finalSubjectName = lessonData.subject[0]?.subjectname || 'Unknown Subject'
-					} else if (lessonData.subject) {
-						finalSubjectName = lessonData.subject.subjectname || 'Unknown Subject'
+		const attendanceRecords =
+			data
+				?.filter(record => {
+					let lessonData: any = null
+					if (Array.isArray(record.lesson)) {
+						lessonData = record.lesson[0] || null
+					} else {
+						lessonData = record.lesson || null
 					}
-				}
 
-				return {
-					id: record.id,
-					status: record.status,
-					date: record.noted_at,
-					lessonName: lessonData?.lessonname || 'Unknown Lesson',
-					lessonDate: lessonData?.date,
-					subjectName: finalSubjectName,
-				}
-			}) || []
+					return lessonData && lessonData.subjectid === subjectId
+				})
+				.map(record => {
+					// Based on linter, record.lesson could be an array of lessons
+					let lessonData: {
+						id: any
+						lessonname: string
+						date: string
+						subjectid: string
+						subject:
+							| { id: string; subjectname: string }[]
+							| { id: string; subjectname: string }
+							| null
+					} | null = null
+
+					if (Array.isArray(record.lesson)) {
+						lessonData = record.lesson[0] || null
+					} else {
+						lessonData = (record.lesson as any) || null
+					}
+
+					let finalSubjectName = 'Unknown Subject'
+					if (lessonData?.subject) {
+						if (Array.isArray(lessonData.subject)) {
+							finalSubjectName = lessonData.subject[0]?.subjectname || 'Unknown Subject'
+						} else if (lessonData.subject) {
+							finalSubjectName = lessonData.subject.subjectname || 'Unknown Subject'
+						}
+					}
+
+					return {
+						id: record.id,
+						status: record.status,
+						date: record.noted_at,
+						lessonName: lessonData?.lessonname || 'Unknown Lesson',
+						lessonDate: lessonData?.date,
+						subjectName: finalSubjectName,
+					}
+				}) || []
 
 		// Calculate statistics
 		const statistics = {
@@ -2867,5 +2889,227 @@ export const fetchLatestAttendanceForStudent = async (studentId: string) => {
 	} catch (error) {
 		console.error('Error fetching latest attendance:', error)
 		return null
+	}
+}
+
+// Interface for unified notification item
+import { NotificationItem } from '../components/parent/UnifiedNotificationHandler'
+
+/**
+ * Fetch unified notifications from multiple sources:
+ * - Scores (grades) for the parent's children
+ * - Attendance records for the parent's children
+ * - Announcements targeted to parents
+ *
+ * @param parentId The ID of the parent user
+ * @returns Array of unified notifications
+ */
+export const fetchUnifiedNotifications = async (parentId: string): Promise<NotificationItem[]> => {
+	try {
+		console.log(`[fetchUnifiedNotifications] Fetching notifications for parent: ${parentId}`)
+		const notifications: NotificationItem[] = []
+
+		// Step 1: Get the parent's children
+		const { data: childrenData, error: childrenError } = await supabase
+			.from('users')
+			.select('id, firstName, lastName')
+			.eq('parent_id', parentId)
+			.eq('role', 'Student')
+
+		if (childrenError) {
+			console.error('[fetchUnifiedNotifications] Error fetching children:', childrenError)
+			throw childrenError
+		}
+
+		const childIds = childrenData.map(child => child.id)
+		console.log(`[fetchUnifiedNotifications] Found ${childIds.length} children:`, childIds)
+
+		if (childIds.length === 0) {
+			console.log('[fetchUnifiedNotifications] No children found, only fetching announcements')
+		} else {
+			// Step 2: Fetch scores for all children
+			const { data: scoresData, error: scoresError } = await supabase
+				.from('scores')
+				.select(
+					`
+					id,
+					student_id,
+					lesson_id,
+					score,
+					comment,
+					created_at,
+					updated_at,
+					lessons:lesson_id(
+						id,
+						lessonname,
+						subjectid,
+						subjects:subjectid(
+							id,
+							subjectname
+						)
+					)
+				`
+				)
+				.in('student_id', childIds)
+				.order('created_at', { ascending: false })
+				.limit(50) // Limit to the most recent 50 scores
+
+			if (scoresError) {
+				console.error('[fetchUnifiedNotifications] Error fetching scores:', scoresError)
+			} else if (scoresData && scoresData.length > 0) {
+				console.log(`[fetchUnifiedNotifications] Found ${scoresData.length} scores`)
+
+				// Process each score into a notification item
+				for (const score of scoresData) {
+					try {
+						// Find the student from our childrenData
+						const student = childrenData.find(child => child.id === score.student_id)
+						if (!student) continue
+
+						const studentName = `${student.firstName} ${student.lastName}`
+
+						// Get subject name from the lesson
+						let subjectName = 'Unknown Subject'
+						let lessonName = 'Unknown Lesson'
+
+						if (score.lessons) {
+							lessonName = score.lessons.lessonname || 'Unknown Lesson'
+
+							if (score.lessons.subjects) {
+								subjectName = score.lessons.subjects.subjectname || 'Unknown Subject'
+							}
+						}
+
+						const notification: NotificationItem = {
+							id: `score-${score.id}`,
+							type: 'score',
+							content: `${studentName} received a score of ${
+								score.score
+							} in ${subjectName} (${lessonName})${score.comment ? ` - ${score.comment}` : ''}`,
+							timestamp: score.updated_at || score.created_at,
+							studentId: score.student_id,
+							read: false, // Will be updated from store
+						}
+
+						notifications.push(notification)
+					} catch (err) {
+						console.error('[fetchUnifiedNotifications] Error processing score:', err)
+					}
+				}
+			}
+
+			// Step 3: Fetch attendance records for all children
+			const { data: attendanceData, error: attendanceError } = await supabase
+				.from('attendance')
+				.select(
+					`
+					id,
+					student_id,
+					lesson_id,
+					status,
+					noted_at,
+					lessons:lesson_id(
+						id,
+						lessonname,
+						subjectid,
+						subjects:subjectid(
+							id,
+							subjectname
+						)
+					)
+				`
+				)
+				.in('student_id', childIds)
+				.order('noted_at', { ascending: false })
+				.limit(50) // Limit to the most recent 50 attendance records
+
+			if (attendanceError) {
+				console.error('[fetchUnifiedNotifications] Error fetching attendance:', attendanceError)
+			} else if (attendanceData && attendanceData.length > 0) {
+				console.log(`[fetchUnifiedNotifications] Found ${attendanceData.length} attendance records`)
+
+				// Process each attendance record into a notification item
+				for (const record of attendanceData) {
+					try {
+						// Find the student from our childrenData
+						const student = childrenData.find(child => child.id === record.student_id)
+						if (!student) continue
+
+						const studentName = `${student.firstName} ${student.lastName}`
+						const status = record.status
+							? record.status.charAt(0).toUpperCase() + record.status.slice(1)
+							: 'Unknown'
+
+						// Get subject name from the lesson
+						let subjectName = 'Unknown Subject'
+						let lessonName = 'Unknown Lesson'
+
+						if (record.lessons) {
+							lessonName = record.lessons.lessonname || 'Unknown Lesson'
+
+							if (record.lessons.subjects) {
+								subjectName = record.lessons.subjects.subjectname || 'Unknown Subject'
+							}
+						}
+
+						const notification: NotificationItem = {
+							id: `attendance-${record.id}`,
+							type: 'attendance',
+							content: `${studentName} was marked ${status} in ${subjectName} (${lessonName})`,
+							timestamp: record.noted_at,
+							studentId: record.student_id,
+							read: false, // Will be updated from store
+						}
+
+						notifications.push(notification)
+					} catch (err) {
+						console.error('[fetchUnifiedNotifications] Error processing attendance:', err)
+					}
+				}
+			}
+		}
+
+		// Step 4: Fetch announcements (for all parents)
+		const { data: announcementsData, error: announcementsError } = await supabase
+			.from('announcements')
+			.select('*')
+			.or('targetAudience.eq.ALL,targetAudience.eq.Parents,targetAudience.eq.Parent')
+			.order('created_at', { ascending: false })
+			.limit(50) // Limit to the most recent 50 announcements
+
+		if (announcementsError) {
+			console.error('[fetchUnifiedNotifications] Error fetching announcements:', announcementsError)
+		} else if (announcementsData && announcementsData.length > 0) {
+			console.log(`[fetchUnifiedNotifications] Found ${announcementsData.length} announcements`)
+
+			// Process each announcement into a notification item
+			for (const announcement of announcementsData) {
+				try {
+					const title = announcement.title || 'New Announcement'
+					const content = announcement.content || ''
+
+					const notification: NotificationItem = {
+						id: `announcement-${announcement.id}`,
+						type: 'announcement',
+						content: `${title}: ${content}`,
+						timestamp: announcement.updated_at || announcement.created_at,
+						read: false, // Will be updated from store
+					}
+
+					notifications.push(notification)
+				} catch (err) {
+					console.error('[fetchUnifiedNotifications] Error processing announcement:', err)
+				}
+			}
+		}
+
+		// Step 5: Sort all notifications by timestamp (newest first)
+		notifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+		console.log(`[fetchUnifiedNotifications] Returning ${notifications.length} total notifications`)
+		return notifications
+	} catch (error) {
+		console.error('[fetchUnifiedNotifications] Error fetching unified notifications:', error)
+		return []
 	}
 }

@@ -8,6 +8,7 @@ export const EVENTS = {
 	SCORE_UPDATED: 'scoreUpdated',
 	ATTENDANCE_UPDATED: 'attendanceUpdated',
 	DATA_REFRESHED: 'dataRefreshed',
+	NEW_NOTIFICATION: 'newNotification',
 }
 
 // Usage example:
