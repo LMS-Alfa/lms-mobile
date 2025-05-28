@@ -64,6 +64,7 @@ export interface AuthState {
   clearUpdateUserError: () => void;
   deleteUser: (userId: string) => Promise<boolean>;
   clearDeleteUserError: () => void;
+  setPartialUser: (partialUser: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -84,6 +85,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   availableRoles: [],
   loadingRoles: false,
   rolesError: null,
+
+  setPartialUser: (partialUser: Partial<User>) => {
+    set(state => ({
+      user: state.user ? { ...state.user, ...partialUser } : null,
+    }));
+  },
 
   initialize: async () => {
     console.log('[AuthStore] Initializing...');

@@ -8,13 +8,15 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
-  Alert
+  Alert,
+  ScrollView
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../../store/authStore';
 import { Assignment, getStudentAssignments } from '../../services/assignmentService';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'No date set';
@@ -42,9 +44,11 @@ interface ScrollableTabProps {
   tabs: Array<{ id: string; label: string }>;
   activeTab: string;
   onTabChange: (tabId: string) => void;
+  theme: any;
 }
 
 const AssignmentsScreen = () => {
+  const { theme } = useAppTheme();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [filteredAssignments, setFilteredAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,12 +69,13 @@ const AssignmentsScreen = () => {
 
     try {
       setError(null);
+      setLoading(true);
       const assignmentsData = await getStudentAssignments(user.id);
       setAssignments(assignmentsData);
-      setFilteredAssignments(assignmentsData);
     } catch (err) {
       console.error('Error fetching assignments:', err);
       setError('Failed to load assignments. Please try again.');
+      setAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -117,11 +122,11 @@ const AssignmentsScreen = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#4CAF50';
-      case 'in_progress': return '#FF9800';
-      case 'overdue': return '#F44336';
-      case 'not_started': return '#2196F3';
-      default: return '#2196F3';
+      case 'completed': return theme.success;
+      case 'in_progress': return theme.warning;
+      case 'overdue': return theme.danger;
+      case 'not_started': return theme.primary;
+      default: return theme.primary;
     }
   };
 
@@ -131,62 +136,64 @@ const AssignmentsScreen = () => {
       case 'in_progress': return 'In Progress';
       case 'overdue': return 'Overdue';
       case 'not_started': return 'Not Started';
-      default: return 'Unknown';
+      default: return status.charAt(0).toUpperCase() + status.slice(1).replace('_',' ');
     }
   };
 
   const renderAssignmentItem = ({ item }: { item: Assignment }) => {
     const dueDate = item.duedate ? new Date(item.duedate) : null;
     const today = new Date();
-    const isOverdue = dueDate && dueDate < today && item.status !== 'completed';
-    const statusColor = isOverdue ? '#F44336' : getStatusColor(item.status);
+    const currentStatus = String(item.status);
+    const isOverdue = dueDate && dueDate < today && currentStatus !== 'completed';
+    const statusColor = isOverdue ? theme.danger : getStatusColor(currentStatus);
     
     return (
       <TouchableOpacity 
-        style={styles.assignmentCard}
+        style={[styles.assignmentCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}
         onPress={() => navigation.navigate('AssignmentDetail', { assignmentId: item.id })}
       >
         <View style={styles.assignmentHeader}>
-          <View style={styles.subjectContainer}>
-            <Text style={styles.subjectText}>{item.subject?.subjectname || 'No Subject'}</Text>
+          <View style={[styles.subjectContainer, { backgroundColor: theme.primary + '33'}]}>
+            <Text style={[styles.subjectText, { color: theme.primary }]}>{item.subject?.subjectname || 'No Subject'}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
             <Text style={styles.statusText}>
-              {isOverdue ? 'Overdue' : getStatusText(item.status)}
+              {isOverdue ? 'Overdue' : getStatusText(currentStatus)}
             </Text>
           </View>
         </View>
         
-        <Text style={styles.assignmentTitle}>{item.title}</Text>
+        <Text style={[styles.assignmentTitle, { color: theme.text }]}>{item.title}</Text>
         {item.description && (
-          <Text style={styles.assignmentDescription} numberOfLines={2}>
+          <Text style={[styles.assignmentDescription, { color: theme.textSecondary }]} numberOfLines={2}>
             {item.description}
           </Text>
         )}
         
         <View style={styles.assignmentFooter}>
           <View style={styles.dueContainer}>
-            <Icon name="clock" size={16} color="#666" style={styles.footerIcon} />
+            <Icon name="clock" size={16} color={theme.textSecondary} style={styles.footerIcon} />
             <Text style={[
               styles.dueText,
-              isOverdue && styles.overdueText
+              { color: theme.textSecondary },
+              isOverdue && { color: theme.danger }
             ]}>
-              {item.status === 'completed' && item.submissions && item.submissions.length > 0 
+              {currentStatus === 'completed' && item.submissions && item.submissions.length > 0 
                 ? 'Submitted: ' + formatDate(item.submissions[0].submittedat) 
                 : 'Due: ' + formatDate(item.duedate)}
             </Text>
           </View>
           
-          {item.status === 'completed' && item.submissions && item.submissions.length > 0 && item.submissions[0].grade && (
+          {currentStatus === 'completed' && item.submissions && item.submissions.length > 0 && item.submissions[0].grade && (
             <View style={styles.gradeContainer}>
-              <Text style={styles.gradeLabel}>Grade:</Text>
-              <Text style={styles.gradeText}>{item.submissions[0].grade} / {item.maxscore || '??'}</Text>
+              <Text style={[styles.gradeLabel, { color: theme.textSecondary }]}>Grade:</Text>
+              <Text style={[styles.gradeText, { color: theme.success }]}>{item.submissions[0].grade} / {item.maxscore || '??'}</Text>
             </View>
           )}
           
           {item.attachments && item.attachments.length > 0 && (
             <View style={styles.attachmentIndicator}>
-              <Icon name="paperclip" size={16} color="#666" />
+              <Icon name="paperclip" size={16} color={theme.textSecondary} />
             </View>
           )}
         </View>
@@ -194,52 +201,53 @@ const AssignmentsScreen = () => {
     );
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading assignments...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading assignments...</Text>
       </View>
     );
   }
 
-  if (error) {
+  if (error && !refreshing) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="alert-circle" size={50} color="#F44336" />
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+        <Icon name="alert-circle" size={50} color={theme.danger} />
+        <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
         <TouchableOpacity 
-          style={styles.retryButton}
+          style={[styles.retryButton, { backgroundColor: theme.primary }]}
           onPress={loadAssignments}
         >
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={[styles.retryButtonText, { color: theme.cardBackground }]}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color="#999" style={styles.searchIcon} />
+      <View style={[styles.searchContainer, { backgroundColor: theme.cardBackground, borderBottomColor: theme.separator }]}>
+        <Icon name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: theme.text }]}
           placeholder="Search assignments..."
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholderTextColor="#999"
+          placeholderTextColor={theme.textSecondary}
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="x" size={20} color="#999" />
+            <Icon name="x" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
       
       {/* Filter Tabs */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabOuterContainer, { backgroundColor: theme.cardBackground, borderBottomColor: theme.separator}]}>
         <ScrollableTab 
+          theme={theme}
           tabs={[
             { id: 'all', label: 'All' },
             { id: 'upcoming', label: 'Upcoming' },
@@ -252,127 +260,162 @@ const AssignmentsScreen = () => {
         />
       </View>
       
-      {/* Assignment List */}
-      <FlatList
-        data={filteredAssignments}
-        renderItem={renderAssignmentItem}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Icon name="clipboard" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>
-              {searchQuery.length > 0 
-                ? "No assignments match your search" 
-                : "No assignments in this category"}
-            </Text>
-          </View>
-        )}
-      />
+      {error && refreshing && (
+        <View style={[styles.inlineErrorView, {backgroundColor: theme.danger + '33'}]}>
+          <Text style={[styles.inlineErrorText, {color: theme.danger}]}>Refresh failed: {error}</Text>
+        </View>
+      )}
+
+      {filteredAssignments.length === 0 && !loading ? (
+         <View style={styles.emptyContainer}>
+          <Icon name="file-text" size={40} color={theme.textSecondary} />
+          <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            {searchQuery ? 'No assignments match your search.' : `No ${activeTab !== 'all' ? getStatusText(activeTab) : ''} assignments.`}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredAssignments}
+          renderItem={renderAssignmentItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContentContainer}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh} 
+              colors={[theme.primary]} 
+              tintColor={theme.primary}
+            />
+          }
+        />
+      )}
     </View>
   );
 };
 
 // Fix the ScrollableTab component
-const ScrollableTab: React.FC<ScrollableTabProps> = ({ tabs, activeTab, onTabChange }) => {
+const ScrollableTab: React.FC<ScrollableTabProps> = ({ tabs, activeTab, onTabChange, theme }) => {
   return (
-    <FlatList
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.tabScrollContainer}
-      data={tabs}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => (
+    <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false} 
+      contentContainerStyle={styles.tabContainerScroll}
+    >
+      {tabs.map((tab) => (
         <TouchableOpacity
-          key={item.id}
-          style={[styles.tab, activeTab === item.id && styles.activeTab]}
-          onPress={() => onTabChange(item.id)}
+          key={tab.id}
+          style={[
+            styles.tabItem,
+            { backgroundColor: activeTab === tab.id ? theme.primary : theme.cardBackground },
+            activeTab === tab.id && styles.activeTabItem
+          ]}
+          onPress={() => onTabChange(tab.id)}
         >
-          <Text 
-            style={[styles.tabText, activeTab === item.id && styles.activeTabText]}
-          >
-            {item.label}
+          <Text style={[
+            styles.tabText,
+            { color: activeTab === tab.id ? theme.cardBackground : theme.textSecondary }
+          ]}>
+            {tab.label}
           </Text>
         </TouchableOpacity>
-      )}
-    />
+      ))}
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    margin: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
   },
   searchIcon: {
-    marginRight: 8,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
-    height: 48,
+    height: 40,
     fontSize: 16,
-    color: '#333',
   },
-  tabContainer: {
-    marginBottom: 10,
-  },
-  tabScrollContainer: {
-    paddingHorizontal: 16,
-  },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginRight: 8,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+  tabOuterContainer: {
+    borderBottomWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 1,
+    shadowRadius: 2,
     elevation: 1,
   },
-  activeTab: {
-    backgroundColor: '#4A90E2',
+  tabContainerScroll: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  tabItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginHorizontal: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 38,
+  },
+  activeTabItem: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   tabText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
   },
-  activeTabText: {
-    color: '#FFFFFF',
-  },
-  listContainer: {
+  listContentContainer: {
     padding: 16,
-    paddingTop: 8,
   },
   assignmentCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 10,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
   assignmentHeader: {
     flexDirection: 'row',
@@ -381,124 +424,94 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   subjectContainer: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: '#E3F2FD',
-    borderRadius: 4,
+    borderRadius: 15,
   },
   subjectText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#1976D2',
+    fontWeight: '600',
   },
   statusBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: '500',
     color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   assignmentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 8,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
   },
   assignmentDescription: {
     fontSize: 14,
-    color: '#666666',
     marginBottom: 12,
     lineHeight: 20,
   },
   assignmentFooter: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 12,
+    paddingTop: 10,
   },
   dueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
   },
   footerIcon: {
     marginRight: 6,
   },
   dueText: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 13,
+    fontWeight: '500',
   },
   overdueText: {
-    color: '#F44336',
-    fontWeight: '500',
+    fontWeight: 'bold',
   },
   gradeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   gradeLabel: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 13,
     marginRight: 4,
-  },
-  gradeText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
-  attachmentIndicator: {
-    marginLeft: 'auto',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
     fontWeight: '500',
   },
+  gradeText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  attachmentIndicator: {
+    paddingLeft: 8,
+  },
   emptyContainer: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    padding: 40,
+    alignItems: 'center',
+    padding: 20,
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 10,
+  },
+  inlineErrorView: {
+    padding: 10,
+    alignItems: 'center',
+  },
+  inlineErrorText: {
+    fontSize: 14,
   },
 });
 
