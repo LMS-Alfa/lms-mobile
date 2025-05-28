@@ -5,7 +5,7 @@ import { lightTheme, darkTheme } from '../styles/theme'; // Assuming theme.ts is
 
 // AppTheme now directly reflects the structure of lightTheme/darkTheme
 // which is DefaultTheme extended with flat color properties.
-interface AppTheme extends DefaultTheme {
+export interface AppTheme extends DefaultTheme {
   primary: string;
   text: string;
   textSecondary: string;

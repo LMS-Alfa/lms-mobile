@@ -15,10 +15,10 @@ export interface GradeItem extends Omit<ExportedGradeItem, 'id' | 'type'> {
 	attendance?: string | undefined // Allow null for attendance again
 }
 
-export interface SubjectGrade extends Omit<ExportedSubjectGrade, 'grades'> {
-	id: number
-	subjectName: string
-	teacherName: string
+export interface SubjectGrade extends Omit<ExportedSubjectGrade, 'grades' | 'id'> { // Omitted 'id' here
+	id: string; // Changed from number to string
+	subjectName: string;
+	teacherName: string;
 	className: string
 	color: string
 	averageGrade: string
@@ -95,8 +95,7 @@ interface AssignmentFromSupabase {
 	title: any
 	duedate: any
 	subjectid?: any
-	subject_id?: any // Added to ensure compatibility if field name varies
-	max_score?: number
+	subject_id?: any
 	subject: AssignmentSubjectFromSupabase | AssignmentSubjectFromSupabase[] | null
 }
 
@@ -104,7 +103,7 @@ interface UserFromSupabase {
 	id: any
 	firstName: any
 	lastName: any
-	email: any
+	email: string
 }
 
 interface ClassFromSupabase {
@@ -129,7 +128,6 @@ export interface ChildAssignment {
 	isCompleted: boolean
 	isPastDue: boolean
 	score?: number
-	maxScore?: number
 	feedback?: string
 }
 
@@ -142,7 +140,6 @@ interface RawAssignmentData {
 	subject_id?: string
 	classid?: string
 	subject?: { id: string; subjectname: string } | { id: string; subjectname: string }[] // Allow single object or array
-	max_score?: number
 }
 
 // Interface for the combined details to be returned by the new function
@@ -153,7 +150,6 @@ export interface ParentDetailedAssignment {
 	instructions?: string
 	dueDate: string
 	subjectName?: string
-	maxScore?: number
 	// Submission specific
 	submittedAt?: string | null
 	grade?: number | null
@@ -512,7 +508,7 @@ export const fetchChildGrades = async (childId: string): Promise<SubjectGrade[]>
 				const subjectId = subject.id
 				if (!subjectMap.has(subjectId)) {
 					subjectMap.set(subjectId, {
-						id: Number(subject.id) || 0,
+						id: subject.id as string, // Ensure id is string
 						subjectName: subject.subjectname || 'Unknown Subject',
 						teacherName,
 						className,
@@ -708,7 +704,7 @@ export const fetchChildGrades = async (childId: string): Promise<SubjectGrade[]>
 		// Add dummy data if nothing found
 		if (subjects.length === 0) {
 			subjects.push({
-				id: -1, // Use negative ID to avoid conflicts with real data
+				id: "-1", // Use string ID for dummy data
 				subjectName: 'No Subjects Found',
 				teacherName: 'Check Database',
 				className: 'Database Error',
@@ -1071,7 +1067,6 @@ export const fetchStudentSubmissions = async (studentId: string) => {
           duedate,
           subjectid,
           subject_id,
-          max_score,
           subject:subjects(
             id,
             subjectname
@@ -1118,7 +1113,6 @@ export const fetchStudentSubmissions = async (studentId: string) => {
 							: false,
 					subjectName: subjectNameStr,
 					subjectColor: '#4A90E2',
-					maxScore: assignmentData?.max_score, // Added maxScore from assignmentData
 				}
 			}) || []
 
@@ -1444,9 +1438,9 @@ export const fetchParentChildrenWithResults = async (parentId: string) => {
 }
 
 // Fetch detailed subject grades for a specific child of a parent
-export const fetchParentChildSubjectGrades = async (childId: string, parentId: string) => {
+export const fetchParentChildSubjectGrades = async (childId: string, parentId: string, subjectId?: string) => {
 	try {
-		console.log(`Fetching subject grades for child ${childId} of parent ${parentId}`)
+		console.log(`Fetching subject grades for child ${childId} of parent ${parentId}${subjectId ? ` for subject ${subjectId}` : ''}`)
 
 		// First verify this child belongs to the parent
 		const { data: child, error: childError } = await supabase
@@ -1486,8 +1480,8 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 		// Get class IDs to fetch subjects
 		const classIds = enrollments.map(enrollment => enrollment.classid)
 
-		// Fetch subjects for these classes separately
-		const { data: classSubjects, error: subjectsError } = await supabase
+		// Create subjects query based on whether a specific subject is requested
+		let classSubjectsQuery = supabase
 			.from('classsubjects')
 			.select(
 				`
@@ -1500,6 +1494,14 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
       `
 			)
 			.in('classid', classIds)
+		
+		// Apply subject filter if provided
+		if (subjectId) {
+			classSubjectsQuery = classSubjectsQuery.eq('subjectid', subjectId)
+		}
+
+		// Fetch subjects for these classes separately
+		const { data: classSubjects, error: subjectsError } = await classSubjectsQuery
 
 		if (subjectsError) {
 			console.error('Error fetching class subjects:', subjectsError)
@@ -1566,22 +1568,22 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 				const subjectId = subject.id
 				if (!subjectMap.has(subjectId)) {
 					subjectMap.set(subjectId, {
-						id: Number(subject.id) || 0,
+						id: subject.id as string, // Ensure id is string
 						subjectName: subject.subjectname || 'Unknown Subject',
 						teacherName,
 						className,
 						color: '#4A90E2',
-						hasGrades: false,
-						averageGrade: 'N/A',
-						numericGrade: 0,
-						grades: [],
+							hasGrades: false,
+							averageGrade: 'N/A',
+							numericGrade: 0,
+							grades: [],
 					})
 				}
 			}
 		}
 
-		// Fetch all grades for this student
-		const { data: grades, error: gradesError } = await supabase
+		// Create grades query
+		let gradesQuery = supabase
 			.from('scores')
 			.select(
 				`
@@ -1598,6 +1600,9 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
       `
 			)
 			.eq('student_id', childId) // Fixed field name to match database schema
+
+		// Fetch all grades for this student
+		const { data: grades, error: gradesError } = await gradesQuery
 
 		if (gradesError) {
 			console.error(`Error fetching grades:`, gradesError)
@@ -1761,7 +1766,7 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 		// Add dummy data if nothing found
 		if (subjects.length === 0) {
 			subjects.push({
-				id: -1, // Use negative ID to avoid conflicts with real data
+				id: "-1", // Use string ID for dummy data
 				subjectName: 'No Subjects Found',
 				teacherName: 'Check Database',
 				className: 'Database Error',
@@ -1776,6 +1781,287 @@ export const fetchParentChildSubjectGrades = async (childId: string, parentId: s
 		return subjects
 	} catch (error) {
 		console.error('Error in fetchParentChildSubjectGrades:', error)
+		throw new Error(handleSupabaseError(error))
+	}
+}
+
+// New function to fetch grades for a specific subject
+export const fetchParentChildSubjectGradesForSubject = async (childId: string, parentId: string, subjectId: string): Promise<SubjectGrade | null> => {
+	try {
+		console.log(`Fetching grades for child ${childId} of parent ${parentId} for subject ${subjectId}`)
+		
+		// Validate subjectId to ensure it's not "0" or an invalid UUID
+		if (!subjectId || subjectId === "0") {
+			console.error(`Invalid subjectId provided: ${subjectId}`)
+			throw new Error("Invalid subject ID provided")
+		}
+		
+		// Use the existing function with the subjectId parameter
+		const subjectResults = await fetchParentChildSubjectGrades(childId, parentId, subjectId)
+		
+		if (!subjectResults || subjectResults.length === 0) {
+			console.log(`No subject grades found for subject ${subjectId}`)
+			return null
+		}
+		
+		// Return the first (and should be only) subject in the result
+		return subjectResults[0]
+	} catch (error) {
+		console.error(`Error fetching grades for subject ${subjectId}:`, error)
+		throw new Error(handleSupabaseError(error))
+	}
+}
+
+// Fetch assignments for a specific subject
+export const fetchParentChildAssignmentsForSubject = async (
+	childId: string, 
+	parentId: string, 
+	subjectId: string
+): Promise<ChildAssignment[]> => {
+	try {
+		// Validate subjectId to ensure it's not "0" or an invalid UUID
+		if (!subjectId || subjectId === "0") {
+			console.error(`Invalid subjectId provided: ${subjectId}`)
+			throw new Error("Invalid subject ID provided")
+		}
+		
+		// First, ensure the child belongs to the parent
+		const { data: childRelation, error: childRelationError } = await supabase
+			.from('users')
+			.select('id')
+			.eq('id', childId)
+			.eq('parent_id', parentId)
+			.single()
+
+		if (childRelationError || !childRelation) {
+			console.error('Child does not belong to parent or error fetching relation:', childRelationError)
+			throw new Error("This child doesn't belong to the specified parent")
+		}
+
+		// Get the class(es) the student is enrolled in
+		const { data: enrollments, error: enrollmentError } = await supabase
+			.from('classstudents')
+			.select('classid')
+			.eq('studentid', childId)
+
+		if (enrollmentError) {
+			console.error(`Error fetching enrollments for student ${childId}:`, enrollmentError)
+			throw enrollmentError
+		}
+
+		if (!enrollments || enrollments.length === 0) {
+			console.log(`Student ${childId} is not enrolled in any classes.`)
+			return []
+		}
+
+		const classIds = enrollments.map(e => e.classid)
+
+		// Get assignments for these classes, filtered by subjectId
+		const { data: assignmentsData, error: assignmentsError } = await supabase
+			.from('assignments')
+			.select(
+				`
+				id,
+				title,
+				instructions,
+				duedate,
+				subject_id,
+				classid,
+				subject:subjects(id, subjectname)
+			`
+			)
+			.in('classid', classIds)
+			.eq('subject_id', subjectId)  // Filter by subject_id
+
+		if (assignmentsError) {
+			console.error('Error fetching assignments for subject:', subjectId, assignmentsError)
+			throw assignmentsError
+		}
+
+		if (!assignmentsData || assignmentsData.length === 0) {
+			console.log('No assignments found for the subject:', subjectId)
+			return []
+		}
+
+		const assignmentIds = assignmentsData.map(a => a.id)
+
+		// Fetch submissions for these assignments specifically for this student
+		const { data: submissionsData, error: submissionsError } = await supabase
+			.from('submissions')
+			.select('assignmentid, grade, feedback')
+			.eq('studentid', childId)
+			.in('assignmentid', assignmentIds)
+
+		if (submissionsError) {
+			console.error('Error fetching submissions for student:', childId, submissionsError)
+			throw submissionsError
+		}
+
+		const submissionsMap = new Map()
+		if (submissionsData) {
+			submissionsData.forEach(sub => {
+				submissionsMap.set(sub.assignmentid, sub)
+			})
+		}
+
+		return (assignmentsData as RawAssignmentData[]).map(item => {
+			const submission = submissionsMap.get(item.id)
+			const isCompleted = !!submission
+
+			const dueDate = new Date(item.duedate)
+			const isPastDue = dueDate < new Date() && !isCompleted
+
+			let subjectName = 'Unknown Subject'
+			// Handle if item.subject is an array or single object
+			const subjectField = item.subject
+			if (subjectField) {
+				if (Array.isArray(subjectField)) {
+					subjectName = subjectField[0]?.subjectname || 'Unknown Subject'
+				} else {
+					// It's a single object
+					subjectName = subjectField.subjectname || 'Unknown Subject'
+				}
+			}
+
+			return {
+				id: item.id,
+				title: item.title,
+				subjectName: subjectName,
+				dueDate: item.duedate,
+				isCompleted: isCompleted,
+				isPastDue,
+				score: submission?.grade,
+				feedback: submission?.feedback === null ? undefined : submission?.feedback,
+			}
+		})
+	} catch (err) {
+		console.error('Error in fetchParentChildAssignmentsForSubject:', err)
+		throw new Error(handleSupabaseError(err))
+	}
+}
+
+// Fetch attendance records for a specific subject
+export const fetchParentChildAttendanceForSubject = async (
+	childId: string, 
+	parentId: string,
+	subjectId: string
+) => {
+	try {
+		console.log(`Fetching attendance for child ${childId} of parent ${parentId} for subject ${subjectId}`)
+
+		// Validate subjectId to ensure it's not "0" or an invalid UUID
+		if (!subjectId || subjectId === "0") {
+			console.error(`Invalid subjectId provided: ${subjectId}`)
+			throw new Error("Invalid subject ID provided")
+		}
+
+		// Verify parent relationship
+		const { data: childVerify, error: childErrorVerify } = await supabase
+			.from('users')
+			.select('id')
+			.eq('id', childId)
+			.eq('parent_id', parentId)
+			.single()
+
+		if (childErrorVerify || !childVerify) {
+			console.error('Error verifying child belongs to parent:', childErrorVerify)
+			throw new Error("This child doesn't belong to the specified parent")
+		}
+
+		// Get attendance records filtered by subject
+		const { data, error } = await supabase
+			.from('attendance')
+			.select(
+				`
+				id,
+				status,
+				noted_at,
+				student_id,
+				lesson_id,
+				lesson: lessons!lesson_id (
+					id,
+					lessonname,
+					date,
+					subjectid,
+					subject: subjects!subjectid (
+						id,
+						subjectname
+					)
+				)
+			`
+			)
+			.eq('student_id', childId)
+			.order('noted_at', { ascending: false })
+
+		if (error) {
+			console.error('Error fetching attendance records:', error)
+			throw new Error(handleSupabaseError(error))
+		}
+
+		// Filter attendance records by subject ID
+		const attendanceRecords = data?.filter(record => {
+				let lessonData: any = null;
+				if (Array.isArray(record.lesson)) {
+					lessonData = record.lesson[0] || null;
+				} else {
+					lessonData = record.lesson || null;
+				}
+				
+				return lessonData && lessonData.subjectid === subjectId;
+			})
+			.map(record => {
+				// Based on linter, record.lesson could be an array of lessons
+				let lessonData: {
+					id: any
+					lessonname: string
+					date: string
+					subjectid: string
+					subject:
+						| { id: string; subjectname: string }[]
+						| { id: string; subjectname: string }
+						| null
+				} | null = null
+
+				if (Array.isArray(record.lesson)) {
+					lessonData = record.lesson[0] || null
+				} else {
+					lessonData = (record.lesson as any) || null
+				}
+
+				let finalSubjectName = 'Unknown Subject'
+				if (lessonData?.subject) {
+					if (Array.isArray(lessonData.subject)) {
+						finalSubjectName = lessonData.subject[0]?.subjectname || 'Unknown Subject'
+					} else if (lessonData.subject) {
+						finalSubjectName = lessonData.subject.subjectname || 'Unknown Subject'
+					}
+				}
+
+				return {
+					id: record.id,
+					status: record.status,
+					date: record.noted_at,
+					lessonName: lessonData?.lessonname || 'Unknown Lesson',
+					lessonDate: lessonData?.date,
+					subjectName: finalSubjectName,
+				}
+			}) || []
+
+		// Calculate statistics
+		const statistics = {
+			total: attendanceRecords.length,
+			present: attendanceRecords.filter(r => r.status === 'present').length,
+			absent: attendanceRecords.filter(r => r.status === 'absent').length,
+			late: attendanceRecords.filter(r => r.status === 'late').length,
+			excused: attendanceRecords.filter(r => r.status === 'excused').length,
+		}
+
+		return {
+			records: attendanceRecords,
+			statistics,
+		}
+	} catch (error) {
+		console.error('Error in fetchParentChildAttendanceForSubject:', error)
 		throw new Error(handleSupabaseError(error))
 	}
 }
@@ -2003,7 +2289,6 @@ export const fetchParentChildAssignments = async (
 				isCompleted: isCompleted,
 				isPastDue,
 				score: submission?.grade,
-				maxScore: item.max_score,
 				feedback: submission?.feedback === null ? undefined : submission?.feedback, // Map null to undefined
 			}
 		})
@@ -2100,7 +2385,6 @@ export const fetchChildAssignmentDetails = async (
         duedate,
         subject_id,
         classid,
-        max_score,
         subject:subjects(id, subjectname)
       `
 			)
@@ -2177,7 +2461,6 @@ export const fetchChildAssignmentDetails = async (
 			instructions: assignment.instructions,
 			dueDate: assignment.duedate,
 			subjectName: subjectNameStr,
-			maxScore: assignment.max_score, // Assign fetched max_score
 			submittedAt: submission?.submittedat || null,
 			grade: submission?.grade !== undefined ? submission.grade : null,
 			feedback: submission?.feedback || null,

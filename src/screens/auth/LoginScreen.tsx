@@ -58,12 +58,6 @@ const LoginScreen = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.inner}>
-            <View style={styles.logoContainer}>
-              <Text style={[styles.appName, { color: theme.text }]}>
-                LMS Mobile
-              </Text>
-            </View>
-
             <View style={[styles.formContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
               <Text style={[styles.title, { color: theme.text }]}>Welcome Back</Text>
               <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
@@ -147,17 +141,11 @@ const LoginScreen = () => {
                   <Text style={styles.loginButtonText}>Login</Text>
                 )}
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.forgotPasswordContainer}>
-                <Text style={[styles.forgotPasswordText, { color: theme.primary }]}>
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-                © 2023 LMS Mobile App
+                © 2025 LMS Mobile App
               </Text>
             </View>
           </View>

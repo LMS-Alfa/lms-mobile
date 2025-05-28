@@ -114,7 +114,7 @@ const StudentDrawerNavigator = () => {
           fontWeight: '500',
         },
         drawerStyle: {
-          width: width * 0.75, // 75% of screen width
+          width: width * 0.75,
           backgroundColor: theme.cardBackground,
         },
         drawerItemStyle: {
@@ -122,9 +122,6 @@ const StudentDrawerNavigator = () => {
           paddingVertical: 2,
           marginVertical: 2,
           marginHorizontal: 10,
-        },
-        drawerIconStyle: {
-          marginRight: 10,
         },
       }}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
@@ -190,18 +187,6 @@ const StudentDrawerNavigator = () => {
         }}
       />
       <Drawer.Screen
-        name="Messages"
-        component={StudentDashboardScreen} // Placeholder, will update later
-        options={{
-          title: 'Messages',
-          drawerIcon: ({ color, size }) => (
-            <View style={styles.iconContainer}>
-              <Icon name="message-square" color={color} size={size} />
-            </View>
-          ),
-        }}
-      />
-      <Drawer.Screen
         name="Announcements"
         component={AnnouncementsScreen}
         options={{
@@ -220,6 +205,7 @@ const StudentDrawerNavigator = () => {
 const styles = StyleSheet.create({
   drawerContainer: {
     flex: 1,
+    paddingTop: 50,
   },
   userSection: {
     flexDirection: 'row',
@@ -272,6 +258,9 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginLeft: 5,
+    marginRight: 10,
+    width: 24,
+    alignItems: 'center',
   },
 });
 

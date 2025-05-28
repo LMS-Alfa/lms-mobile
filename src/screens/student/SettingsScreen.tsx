@@ -13,11 +13,21 @@ import { useAuthStore } from '../../store/authStore';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../contexts/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+
+// Define a local stack param list that includes EditProfile
+// This should ideally be part of a shared types file if used across multiple navigators
+type SettingsStackParamList = {
+  Settings: undefined; // Current screen
+  EditProfile: undefined; // The screen we want to navigate to
+  ChangePassword: undefined; // Existing navigation target
+  // Add other routes accessible from Settings if any
+};
 
 const SettingsScreen = () => {
   const { user, logout } = useAuthStore();
   const { isDarkMode, toggleTheme, theme } = useAppTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<StackNavigationProp<SettingsStackParamList>>();
   
   // Handle logout
   const handleLogout = () => {
@@ -37,6 +47,10 @@ const SettingsScreen = () => {
     );
   };
 
+  const handleEditProfile = () => {
+    navigation.navigate('EditProfile');
+  };
+
   // Navigate to change password screen
   const handleChangePassword = () => {
     navigation.navigate('ChangePassword' as never);
@@ -49,14 +63,17 @@ const SettingsScreen = () => {
         <View style={[styles.profileSection, { backgroundColor: theme.cardBackground }]}>
           <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
             <Text style={styles.avatarText}>
-              {user?.firstName?.charAt(0) || user?.username?.charAt(0) || 'S'}
+              {user?.firstName?.charAt(0) || 'S'}
             </Text>
           </View>
           <View style={styles.profileInfo}>
             <Text style={[styles.userName, { color: theme.text }]}>{user?.firstName} {user?.lastName || ''}</Text>
             <Text style={[styles.userEmail, { color: theme.textSecondary }]}>{user?.email || 'student@example.com'}</Text>
           </View>
-          <TouchableOpacity style={[styles.editButton, { backgroundColor: theme.primary }]}>
+          <TouchableOpacity 
+            style={[styles.editButton, { backgroundColor: theme.primary }]} 
+            onPress={handleEditProfile}
+          >
             <Text style={styles.editButtonText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
@@ -102,7 +119,7 @@ const SettingsScreen = () => {
 
         <View style={styles.footer}>
           <Text style={[styles.versionText, { color: theme.textSecondary }]}>Version 1.0.0</Text>
-          <Text style={[styles.copyrightText, { color: theme.textSecondary }]}>© 2023 LMS Educational System</Text>
+          <Text style={[styles.copyrightText, { color: theme.textSecondary }]}>© 2025 LMS Educational System</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -7,20 +7,56 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
-  Alert
+  Alert,
+  ScrollView
 } from 'react-native';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Feather';
-import { GradeItem } from '../../services/parentSupabaseService';
-import { fetchChildGrades } from '../../services/parentSupabaseService';
+import { 
+  GradeItem, 
+  fetchChildGrades, 
+  fetchParentChildAssignments,
+  ChildAssignment
+} from '../../services/parentSupabaseService';
 import { ParentHomeStackParamList } from '../../navigators/ParentTabNavigator';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { GlobalStyles } from '../../styles/GlobalStyles';
+import { useAuthStore } from '../../store/authStore';
 
 // Define route params type
 type ParentSubjectGradesRouteProp = RouteProp<ParentHomeStackParamList, 'ParentSubjectGrades'>;
 
+// Assignment types
+type AssignmentStatus = 'completed' | 'in-progress' | 'upcoming' | 'overdue';
+
+interface Assignment {
+  id: string | number;
+  title: string;
+  description?: string;
+  dueDate: string;
+  status: AssignmentStatus;
+  score?: number;
+  completed?: boolean;
+  submittedDate?: string;
+  feedback?: string;
+}
+
+// Extended GradeItem with optional notes
+interface ExtendedGradeItem extends GradeItem {
+  notes?: string;
+  lessonName?: string;
+  lessonType?: string;
+}
+
+// Include ParentDetailedAssignment interface (likely returned from the API)
+interface ParentDetailedAssignment {
+  assignments: Assignment[];
+  // Other possible fields that might be in the API response
+}
+
+// Format date to a readable format
 const formatDate = (dateString: string) => {
+  if (!dateString) return 'N/A';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -94,102 +130,417 @@ const getColorFor = (item: any, isAttendance: boolean = false): string => {
   }
 };
 
+// Get color for assignment status
+const getAssignmentStatusColor = (status: AssignmentStatus): string => {
+  switch (status) {
+    case 'completed': return '#4CAF50';
+    case 'in-progress': return '#4A90E2';
+    case 'upcoming': return '#9E9E9E';
+    case 'overdue': return '#F44336';
+    default: return '#999999';
+  }
+};
+
+// Simple Tab View Component
+const TabView = ({ 
+  tabs, 
+  activeTab, 
+  onTabChange 
+}: { 
+  tabs: string[], 
+  activeTab: number, 
+  onTabChange: (index: number) => void 
+}) => {
+  return (
+    <View style={tabStyles.container}>
+      {tabs.map((tab, index) => (
+        <TouchableOpacity
+          key={index}
+          style={[
+            tabStyles.tab,
+            activeTab === index && tabStyles.activeTab
+          ]}
+          onPress={() => onTabChange(index)}
+        >
+          <Text 
+            style={[
+              tabStyles.tabText,
+              activeTab === index && tabStyles.activeTabText
+            ]}
+          >
+            {tab}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+};
+
+// Tab styles
+const tabStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#4A90E2',
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#666666',
+  },
+  activeTabText: {
+    color: '#4A90E2',
+    fontWeight: '600',
+  },
+});
+
 const ParentSubjectGradesScreen = () => {
   const [grades, setGrades] = useState<GradeItem[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
   
   const route = useRoute<ParentSubjectGradesRouteProp>();
   const navigation = useNavigation();
+  const { user } = useAuthStore();
   
   const { childId, childName, subjectId, subjectName } = route.params;
   
-  // Fetch grades for this subject
+  // Fetch grades and assignments for this subject
   useEffect(() => {
-    const fetchGrades = async () => {
+    const fetchData = async () => {
       try {
         setError(null);
+        setLoading(true);
+        
+        console.log(`Fetching data for child: ${childId}, subject: ${subjectId}, name: ${subjectName}`);
         
         // Get all subject grades from Supabase
         const subjectsData = await fetchChildGrades(childId);
         
-        // Find the specific subject by ID
-        const subjectData = subjectsData.find(s => s.id === subjectId);
-        
-        if (!subjectData) {
-          setError('Subject data not found');
+        // Add detailed logging to debug subject IDs and structure
+        console.log("All available subjects:", subjectsData.map(s => ({
+          id: s.id,
+          name: s.subjectName,
+          gradeCount: s.grades?.length || 0
+        })));
+
+        // If no subjects were found, display error
+        if (!subjectsData || subjectsData.length === 0) {
+          console.error("No subjects found for this child");
+          setError('No subjects found for this child. Please try again.');
           setLoading(false);
           return;
         }
         
-        console.log(`Found ${subjectData.grades.length} grades/attendance records for this subject`);
+        // Try multiple approaches to find the subject
+        let subjectData = null;
+        
+        // 1. Try to find by exact ID match (convert both to strings for comparison)
+        subjectData = subjectsData.find(s => String(s.id) === String(subjectId));
+        console.log(`Attempt 1 - Match by exact ID: ${!!subjectData}`);
+        
+        // 2. If not found, try by subject name exact match
+        if (!subjectData && subjectName) {
+          subjectData = subjectsData.find(s => 
+            s.subjectName === subjectName
+          );
+          console.log(`Attempt 2 - Match by exact name: ${!!subjectData}`);
+        }
+        
+        // 3. If still not found, try case-insensitive name match
+        if (!subjectData && subjectName) {
+          subjectData = subjectsData.find(s => 
+            s.subjectName.toLowerCase() === subjectName.toLowerCase()
+          );
+          console.log(`Attempt 3 - Match by lowercase name: ${!!subjectData}`);
+        }
+        
+        // If we still can't find the subject, check if there's only one subject and use that
+        if (!subjectData && subjectsData.length === 1) {
+          console.log("Only one subject found, using it as default");
+          subjectData = subjectsData[0];
+        }
+        
+        // If we still couldn't find the subject, report error
+        if (!subjectData) {
+          console.error(`Subject with ID ${subjectId} or name ${subjectName} not found in data`);
+          setError('Subject data not found. Please try again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log(`Found subject: ${subjectData.subjectName} (ID: ${subjectData.id})`);
+        console.log(`Found ${subjectData.grades?.length || 0} grades/attendance records for this subject`);
+        
+        // Process grades to enhance with lesson information
+        const processedGrades = (subjectData.grades || [])
+          .filter(grade => grade && (grade.date || grade.score || grade.attendance))
+          .map(grade => {
+            // Create an extended grade item with lesson details if available
+            const extendedGrade: ExtendedGradeItem = {
+              ...grade,
+              // Extract lesson name and type if available
+              lessonName: grade.lessonId?.lessonname || grade.title || 'Unknown Lesson',
+              lessonType: grade.lessonId?.type || grade.type || 'Unknown Type'
+            };
+            return extendedGrade;
+          })
+          .sort((a, b) => {
+            // Sort by date (newest first)
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
+        
+        console.log(`Processed ${processedGrades.length} grade records with lesson details`);
+        console.log("First few grade items:", processedGrades.slice(0, 2));
         
         // Set the grades for this subject
-        setGrades(subjectData.grades);
+        setGrades(processedGrades);
+        
+        // Fetch assignments for this child
+        if (user && user.id) {
+          try {
+            // Store the actual matched subject ID for use in assignment filtering
+            const matchedSubjectId = subjectData.id;
+            const matchedSubjectName = subjectData.subjectName;
+            
+            // Get all assignments for the child
+            const allAssignments = await fetchParentChildAssignments(childId, user.id);
+            
+            console.log(`Fetched ${allAssignments?.length || 0} total assignments for child ${childId}`);
+            
+            // Filter assignments for the current subject
+            // First ensure we have assignments to filter
+            if (allAssignments && Array.isArray(allAssignments) && allAssignments.length > 0) {
+              console.log("Assignment subject names:", allAssignments.map(a => a.subjectName));
+              
+              // Filter to only include assignments for the current subject
+              // Try multiple approaches to match the subject
+              const subjectAssignments = allAssignments.filter(assignment => {
+                // Compare with the subject we actually found in the database
+                return assignment.subjectName?.toLowerCase() === matchedSubjectName?.toLowerCase();
+              });
+              
+              console.log(`Filtered ${subjectAssignments.length} assignments for subject "${matchedSubjectName}" (ID: ${matchedSubjectId})`);
+              
+              // Map to the Assignment interface
+              const mappedAssignments: Assignment[] = subjectAssignments.map(assignment => ({
+                id: assignment.id,
+                title: assignment.title,
+                description: undefined, // Instructions not available in ChildAssignment
+                dueDate: assignment.dueDate,
+                status: assignment.isCompleted ? 'completed' : 
+                        assignment.isPastDue ? 'overdue' : 'upcoming',
+                score: assignment.score,
+                completed: assignment.isCompleted,
+                submittedDate: undefined, // SubmittedAt not available in ChildAssignment
+                feedback: assignment.feedback
+              }));
+              
+              setAssignments(mappedAssignments);
+            } else {
+              setAssignments([]);
+              console.log('No assignments found for this child');
+            }
+          } catch (assignmentErr) {
+            console.error('Error fetching assignments:', assignmentErr);
+            // Don't fail completely if assignments can't be fetched
+            setAssignments([]);
+          }
+        } else {
+          console.log('No user logged in. Cannot fetch assignments.');
+          setAssignments([]);
+        }
       } catch (err) {
-        console.error('Error fetching subject grades:', err);
-        setError('Failed to load grades. Please try again.');
+        console.error('Error fetching subject data:', err);
+        setError('Failed to load data. Please try again.');
       } finally {
         setLoading(false);
       }
     };
     
-    fetchGrades();
-  }, [childId, subjectId]);
+    fetchData();
+  }, [childId, subjectId, subjectName, user]);
   
-  const renderGradeItem = ({ item }: { item: GradeItem }) => (
-    <View style={styles.gradeItem}>
-      <View style={styles.gradeHeader}>
-        <View style={styles.gradeTypeContainer}>
-          <View style={[
-            styles.iconContainer, 
-            { backgroundColor: item.score !== null && item.score !== undefined 
-                ? getColorFor(item.grade) 
-                : getColorFor(item.attendance, true) 
-            }
-          ]}>
+  // Render a grade item
+  const renderGradeItem = ({ item }: { item: GradeItem }) => {
+    // Cast to extended type to access additional properties
+    const extendedItem = item as ExtendedGradeItem;
+    
+    return (
+      <View style={styles.gradeItem}>
+        <View style={styles.gradeHeader}>
+          <View style={styles.gradeTypeContainer}>
+            <View style={[
+              styles.iconContainer, 
+              { backgroundColor: item.score !== null && item.score !== undefined 
+                  ? getColorFor(item.grade) 
+                  : getColorFor(item.attendance, true) 
+              }
+            ]}>
+              {item.score !== null && item.score !== undefined ? (
+                <Icon name={getGradeTypeIcon(extendedItem.lessonType || item.type || 'assignment')} size={16} color="#FFFFFF" />
+              ) : (
+                getAttendanceIcon(item.attendance)
+              )}
+            </View>
+            <View style={styles.gradeTitleContainer}>
+              <Text style={styles.gradeTitle}>
+                {extendedItem.lessonName || item.title}
+              </Text>
+              {extendedItem.lessonType && (
+                <Text style={styles.lessonTypeText}>
+                  {extendedItem.lessonType.charAt(0).toUpperCase() + extendedItem.lessonType.slice(1)}
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.scoreContainer}>
             {item.score !== null && item.score !== undefined ? (
-              <Icon name={getGradeTypeIcon(item.type || 'assignment')} size={16} color="#FFFFFF" />
+              <>
+                <View style={[styles.gradeBadge, { backgroundColor: getColorFor(item.grade) }]}>
+                  <Text style={styles.gradeBadgeText}>{item.grade}</Text>
+                </View>
+                <Text style={styles.scoreText}>{item.score}</Text>
+              </>
             ) : (
-              getAttendanceIcon(item.attendance)
+              <View style={[styles.attendanceBadge, { backgroundColor: getColorFor(item.attendance, true) }]}>
+                <Text style={styles.gradeBadgeText}>{getAttendanceText(item.attendance)}</Text>
+              </View>
             )}
           </View>
-          <Text style={styles.gradeTitle}>{item.title}</Text>
         </View>
-        <View style={styles.scoreContainer}>
-          {item.score !== null && item.score !== undefined ? (
-            <>
-              <View style={[styles.gradeBadge, { backgroundColor: getColorFor(item.grade) }]}>
-                <Text style={styles.gradeBadgeText}>{item.grade}</Text>
-              </View>
-              <Text style={styles.scoreText}>{item.score}</Text>
-            </>
-          ) : (
-            <View style={[styles.attendanceBadge, { backgroundColor: getColorFor(item.attendance, true) }]}>
-              <Text style={styles.gradeBadgeText}>{getAttendanceText(item.attendance)}</Text>
+        
+        <View style={styles.gradeDetail}>
+          <View style={styles.detailItem}>
+            <Icon name="calendar" size={12} color="#666" style={styles.detailIcon} />
+            <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+          </View>
+          
+          {item.score !== null && item.score !== undefined && item.attendance && (
+            <View style={styles.detailItem}>
+              {getAttendanceIcon(item.attendance)}
+              <Text style={styles.attendanceText}>
+                {getAttendanceText(item.attendance)}
+              </Text>
             </View>
           )}
         </View>
       </View>
-      
-      <View style={styles.gradeDetail}>
-        <View style={styles.detailItem}>
-          <Icon name="calendar" size={12} color="#666" style={styles.detailIcon} />
-          <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+    );
+  };
+
+  // Render an attendance item
+  const renderAttendanceItem = ({ item }: { item: GradeItem }) => {
+    // Only show items with attendance data
+    if (!item.attendance) return null;
+    
+    // Safely cast to ExtendedGradeItem to access optional notes
+    const extendedItem = item as ExtendedGradeItem;
+    
+    return (
+      <View style={styles.attendanceItem}>
+        <View style={styles.attendanceHeader}>
+          <View style={styles.attendanceTypeContainer}>
+            <View style={[styles.iconContainer, { backgroundColor: getColorFor(item.attendance, true) }]}>
+              {getAttendanceIcon(item.attendance)}
+            </View>
+            <View style={styles.attendanceTitleContainer}>
+              <Text style={styles.attendanceTitle}>
+                {extendedItem.lessonName || item.title || 'Class Session'}
+              </Text>
+              {extendedItem.lessonType && (
+                <Text style={styles.lessonTypeText}>
+                  {extendedItem.lessonType.charAt(0).toUpperCase() + extendedItem.lessonType.slice(1)}
+                </Text>
+              )}
+              <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+            </View>
+          </View>
+          <View style={[styles.attendanceBadge, { backgroundColor: getColorFor(item.attendance, true) }]}>
+            <Text style={styles.gradeBadgeText}>{getAttendanceText(item.attendance)}</Text>
+          </View>
         </View>
-        
-        {item.score !== null && item.score !== undefined && item.attendance && (
-          <View style={styles.detailItem}>
-            {getAttendanceIcon(item.attendance)}
-            <Text style={styles.attendanceText}>
-              {getAttendanceText(item.attendance)}
-            </Text>
+
+        {extendedItem.notes && (
+          <View style={styles.attendanceNotes}>
+            <Text style={styles.notesLabel}>Notes:</Text>
+            <Text style={styles.notesText}>{extendedItem.notes}</Text>
           </View>
         )}
       </View>
+    );
+  };
+
+  // Render an assignment item
+  const renderAssignmentItem = ({ item }: { item: Assignment }) => (
+    <View style={styles.assignmentItem}>
+      <View style={styles.assignmentHeader}>
+        <View style={styles.assignmentTypeContainer}>
+          <View style={[styles.iconContainer, { backgroundColor: getAssignmentStatusColor(item.status) }]}>
+            <Icon 
+              name={
+                item.status === 'completed' ? 'check-circle' : 
+                item.status === 'overdue' ? 'alert-circle' :
+                item.status === 'in-progress' ? 'clock' : 'calendar'
+              } 
+              size={16} 
+              color="#FFFFFF" 
+            />
+          </View>
+          <View style={styles.assignmentTitleContainer}>
+            <Text style={styles.assignmentTitle}>{item.title}</Text>
+            <Text style={styles.dateText}>Due: {formatDate(item.dueDate)}</Text>
+          </View>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: getAssignmentStatusColor(item.status) }]}>
+          <Text style={styles.gradeBadgeText}>
+            {item.status === 'completed' ? 'Completed' : 
+             item.status === 'overdue' ? 'Overdue' :
+             item.status === 'in-progress' ? 'In Progress' : 'Upcoming'}
+          </Text>
+        </View>
+      </View>
+
+      {item.description && (
+        <View style={styles.assignmentDescription}>
+          <Text style={styles.descriptionText}>{item.description}</Text>
+        </View>
+      )}
+
+      {item.score !== undefined && (
+        <View style={styles.assignmentScore}>
+          <Text style={styles.scoreLabel}>Score:</Text>
+          <Text style={styles.scoreValue}>{item.score}</Text>
+        </View>
+      )}
+
+      {item.feedback && (
+        <View style={styles.assignmentFeedback}>
+          <Text style={styles.feedbackLabel}>Teacher Feedback:</Text>
+          <Text style={styles.feedbackText}>{item.feedback}</Text>
+        </View>
+      )}
     </View>
   );
-  
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -214,8 +565,16 @@ const ParentSubjectGradesScreen = () => {
     );
   }
   
+  // Filter grades data for different purposes
+  // Items with scores for the grades tab
+  const gradesWithScores = grades.filter(grade => 
+    grade.score !== null && grade.score !== undefined
+  );
+  
+  // Items with attendance for the attendance tab
+  const attendanceItems = grades.filter(g => g.attendance);
+  
   // Calculate average grade (only for items with scores)
-  const gradesWithScores = grades.filter(grade => grade.score !== null);
   const totalScore = gradesWithScores.reduce((sum, grade) => sum + (grade.score || 0), 0);
   const averageScore = gradesWithScores.length > 0 ? totalScore / gradesWithScores.length : 0;
   
@@ -225,6 +584,14 @@ const ParentSubjectGradesScreen = () => {
     absent: grades.filter(g => g.attendance?.toLowerCase() === 'absent').length,
     late: grades.filter(g => g.attendance?.toLowerCase() === 'late').length,
     excused: grades.filter(g => g.attendance?.toLowerCase() === 'excused').length,
+  };
+
+  // Get assignment stats
+  const assignmentStats = {
+    completed: assignments.filter(a => a.status === 'completed').length,
+    inProgress: assignments.filter(a => a.status === 'in-progress').length,
+    upcoming: assignments.filter(a => a.status === 'upcoming').length,
+    overdue: assignments.filter(a => a.status === 'overdue').length,
   };
   
   return (
@@ -323,23 +690,88 @@ const ParentSubjectGradesScreen = () => {
         </View>
       )}
       
-      <View style={styles.gradesList}>
-        <Text style={styles.gradesTitle}>
-          All Grades & Attendance
-        </Text>
-        
-        <FlatList
-          data={grades}
-          renderItem={renderGradeItem}
-          keyExtractor={(item, index) => `grade-${item.id.toString()}-${index}`}
-          contentContainerStyle={styles.gradesListContent}
-          ListEmptyComponent={() => (
-            <View style={styles.emptyContainer}>
-              <Icon name="bar-chart-2" size={50} color="#ccc" />
-              <Text style={styles.emptyText}>No data available for this subject</Text>
-            </View>
-          )}
+      <View style={styles.contentContainer}>
+        {/* Tab Navigation */}
+        <TabView 
+          tabs={['Grades', 'Attendance', 'Assignments']} 
+          activeTab={activeTab} 
+          onTabChange={setActiveTab} 
         />
+        
+        {/* Tab Content */}
+        {activeTab === 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Grade Entries</Text>
+              <Text style={styles.sectionSubtitle}>
+                {gradesWithScores.length} grade{gradesWithScores.length !== 1 ? 's' : ''} • 
+                Avg: {Math.round(averageScore * 10) / 10}
+              </Text>
+            </View>
+            <FlatList
+              data={gradesWithScores}
+              renderItem={renderGradeItem}
+              keyExtractor={(item, index) => `grade-${item.id || index}`}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Icon name="bar-chart-2" size={50} color="#ccc" />
+                  <Text style={styles.emptyText}>No grades available for this subject</Text>
+                </View>
+              )}
+            />
+          </>
+        )}
+        
+        {activeTab === 1 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Attendance Records</Text>
+              <Text style={styles.sectionSubtitle}>
+                Present: {attendance.present} • 
+                Absent: {attendance.absent} • 
+                Late: {attendance.late}
+              </Text>
+            </View>
+            <FlatList
+              data={attendanceItems}
+              renderItem={renderAttendanceItem}
+              keyExtractor={(item, index) => `attendance-${item.id || index}`}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Icon name="user-check" size={50} color="#ccc" />
+                  <Text style={styles.emptyText}>No attendance records available</Text>
+                </View>
+              )}
+            />
+          </>
+        )}
+        
+        {activeTab === 2 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Assignments</Text>
+              <Text style={styles.sectionSubtitle}>
+                Completed: {assignmentStats.completed} • 
+                Overdue: {assignmentStats.overdue} • 
+                Upcoming: {assignmentStats.upcoming}
+              </Text>
+            </View>
+            <FlatList
+              data={assignments}
+              renderItem={renderAssignmentItem}
+              keyExtractor={(item, index) => `assignment-${item.id || index}`}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={() => (
+                <View style={styles.emptyContainer}>
+                  <Icon name="file-text" size={50} color="#ccc" />
+                  <Text style={styles.emptyText}>No assignments available for this subject</Text>
+                </View>
+              )}
+            />
+          </>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -469,17 +901,26 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333333',
   },
-  gradesList: {
+  contentContainer: {
     flex: 1,
-    marginHorizontal: 16,
+    padding: 16,
   },
-  gradesTitle: {
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#333333',
-    marginBottom: 12,
   },
-  gradesListContent: {
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  listContent: {
     paddingBottom: 16,
   },
   gradeItem: {
@@ -512,11 +953,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 10,
   },
+  gradeTitleContainer: {
+    flexDirection: 'column',
+    flex: 1,
+  },
   gradeTitle: {
     fontSize: 16,
     fontWeight: '500',
     color: '#333333',
     flex: 1,
+  },
+  lessonTypeText: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 2,
   },
   scoreContainer: {
     flexDirection: 'row',
@@ -615,6 +1065,123 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     marginTop: 20,
+  },
+  attendanceItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  attendanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  attendanceTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  attendanceTitleContainer: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  attendanceTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333333',
+  },
+  attendanceNotes: {
+    marginTop: 4,
+  },
+  notesLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333333',
+    marginBottom: 2,
+  },
+  notesText: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  assignmentItem: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  assignmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  assignmentTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  assignmentTitleContainer: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  assignmentTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333333',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginLeft: 10,
+  },
+  assignmentDescription: {
+    marginTop: 4,
+  },
+  descriptionText: {
+    fontSize: 12,
+    color: '#666666',
+  },
+  assignmentScore: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333333',
+    marginRight: 4,
+  },
+  scoreValue: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333333',
+  },
+  assignmentFeedback: {
+    marginTop: 4,
+  },
+  feedbackLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#333333',
+    marginBottom: 2,
+  },
+  feedbackText: {
+    fontSize: 12,
+    color: '#666666',
   },
 });
 

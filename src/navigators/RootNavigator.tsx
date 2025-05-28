@@ -4,7 +4,6 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import LoginScreen from '../screens/auth/LoginScreen';
-import AdminNavigator from './AdminNavigator';
 import TeacherNavigator from './TeacherNavigator';
 import StudentNavigator from './StudentNavigator';
 import ParentTabNavigator from './ParentTabNavigator';
@@ -35,13 +34,7 @@ const RootStack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
 const AppStack = createStackNavigator<AppStackParamList>();
 
-// Placeholder screens for other roles (keep as is for now)
-const TeacherHomeScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Teacher Dashboard</Text>
-    <Text style={styles.screenSubtitle}>Coming soon</Text>
-  </View>
-);
+
 
 const StudentHomeScreen = () => (
   <View style={styles.screenContainer}>
@@ -50,12 +43,6 @@ const StudentHomeScreen = () => (
   </View>
 );
 
-const ParentHomeScreen = () => (
-  <View style={styles.screenContainer}>
-    <Text style={styles.screenTitle}>Parent Dashboard</Text>
-    <Text style={styles.screenSubtitle}>Coming soon</Text>
-  </View>
-);
 
 const DefaultHomeScreen = () => (
   <View style={styles.screenContainer}>
@@ -78,9 +65,6 @@ const AppNavigator = () => {
   const { user } = useAuthStore();
   console.log('[RootNavigator] Rendering AppNavigator. User:', user);
   
-  if (user?.role === 'admin') {
-    return <AdminNavigator />;
-  }
   if (user?.role === 'teacher') {
     return <TeacherNavigator />;
   }

@@ -13,22 +13,20 @@ import {
 	StyleSheet,
 	Text,
 	TouchableOpacity,
-	View,
+	View
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Feather'
-import ParentNotificationManager from '../../components/parent/ParentNotificationManager'
 import RealtimeScoreNotifications from '../../components/parent/RealtimeScoreNotifications'
 import { ParentHomeStackParamList, ParentTabParamList } from '../../navigators/ParentTabNavigator'
 import { ChildData, ParentNotification } from '../../services/parentService'
+import { useAuthStore } from '../../store/authStore';
+import { useAppTheme } from '../../contexts/ThemeContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-	fetchLatestAttendanceForStudent,
-	fetchLatestScoreForStudent,
 	fetchParentChildren,
 	fetchParentNotifications,
 	markParentNotificationAsRead,
 } from '../../services/parentSupabaseService'
-import { useAuthStore } from '../../store/authStore'
 
 // Define navigation types
 type ParentDashboardNavigationProp = StackNavigationProp<
@@ -106,15 +104,15 @@ const getChildAvatar = (firstName: string, lastName: string) => {
 }
 
 const ParentDashboardScreen = () => {
+
 	const [children, setChildren] = useState<ChildData[]>([])
 	const [notifications, setNotifications] = useState<ParentNotification[]>([])
 	const [loading, setLoading] = useState(true)
 	const [error, setError] = useState<string | null>(null)
-	const [latestScores, setLatestScores] = useState<Record<string, any>>({})
-	const [latestAttendance, setLatestAttendance] = useState<Record<string, any>>({})
 
 	const navigation = useNavigation<ParentDashboardNavigationProp>()
 	const { user } = useAuthStore()
+	const { theme } = useAppTheme()
 
 	// Get read announcements from AsyncStorage
 	useEffect(() => {
@@ -156,26 +154,6 @@ const ParentDashboardScreen = () => {
 
 				setChildren(childrenData)
 				setNotifications(notificationsWithReadState)
-
-				// Fetch latest scores and attendance for each child
-				const scorePromises = childrenData.map(child => fetchLatestScoreForStudent(child.id))
-				const attendancePromises = childrenData.map(child =>
-					fetchLatestAttendanceForStudent(child.id)
-				)
-
-				const scoresResults = await Promise.all(scorePromises)
-				const attendanceResults = await Promise.all(attendancePromises)
-
-				const scoreMap: Record<string, any> = {}
-				const attendanceMap: Record<string, any> = {}
-
-				childrenData.forEach((child, index) => {
-					scoreMap[child.id] = scoresResults[index]
-					attendanceMap[child.id] = attendanceResults[index]
-				})
-
-				setLatestScores(scoreMap)
-				setLatestAttendance(attendanceMap)
 			} catch (err) {
 				console.error('Error fetching parent dashboard data:', err)
 				setError('Failed to load data. Please try again.')
@@ -253,122 +231,52 @@ const ParentDashboardScreen = () => {
 	}
 
 	// Render child item
-	const renderChildItem = ({ item }: { item: ChildData }) => {
-		const latestScore = latestScores[item.id]
-		const latestAttendanceRecord = latestAttendance[item.id]
-
-		// Calculate attendance rate
-		const totalAttendance =
-			item.recentAttendance.present +
-			item.recentAttendance.absent +
-			item.recentAttendance.late +
-			item.recentAttendance.excused
-
-		// Only calculate percentage if there are attendance records
-		const attendanceRate =
-			totalAttendance > 0 ? Math.round((item.recentAttendance.present / totalAttendance) * 100) : 0
-
-		return (
-			<View style={styles.childItem}>
-				<View style={styles.childHeader}>
-					{item.avatar ? (
-						<Image source={{ uri: item.avatar }} style={styles.avatar} />
-					) : (
-						getChildAvatar(item.firstName, item.lastName)
-					)}
-					<View style={styles.childInfo}>
-						<Text style={styles.childName}>{`${item.firstName} ${item.lastName}`}</Text>
-						<Text style={styles.childDetails}>{`Grade ${item.grade || 'N/A'} • ${
-							item.className || 'No Class'
-						}`}</Text>
-					</View>
-				</View>
-
-				<View style={styles.childStatsContainer}>
-					<View style={styles.statDivider} />
-
-					<View style={styles.statBlock}>
-						<Text style={styles.statLabel}>Attendance</Text>
-						<View style={styles.attendanceBar}>
-							<View
-								style={[
-									styles.attendanceValue,
-									{ width: `${attendanceRate}%`, backgroundColor: '#4CAF50' },
-								]}
-							/>
-						</View>
-						<Text style={styles.attendanceText}>{`${attendanceRate}%`}</Text>
-					</View>
-				</View>
-
-				{/* Latest Score and Attendance Information */}
-				<View style={styles.latestUpdatesContainer}>
-					{latestScore && (
-						<View style={styles.latestScoreContainer}>
-							<Text style={styles.latestUpdateLabel}>Latest Score:</Text>
-							<Text style={styles.latestScoreValue}>
-								{latestScore.score} in {latestScore.subject}
-							</Text>
-							<Text style={styles.latestUpdateTime}>
-								{latestScore.created_at && formatDate(latestScore.created_at)}
-							</Text>
-						</View>
-					)}
-
-					{latestAttendanceRecord && (
-						<View style={styles.latestAttendanceContainer}>
-							<Text style={styles.latestUpdateLabel}>Latest Attendance:</Text>
-							<Text
-								style={[
-									styles.latestAttendanceValue,
-									{
-										color:
-											latestAttendanceRecord.status === 'present'
-												? '#4CAF50'
-												: latestAttendanceRecord.status === 'absent'
-												? '#F44336'
-												: latestAttendanceRecord.status === 'late'
-												? '#FF9800'
-												: '#2196F3',
-									},
-								]}
-							>
-								{latestAttendanceRecord.status} in {latestAttendanceRecord.subject}
-							</Text>
-							<Text style={styles.latestUpdateTime}>
-								{latestAttendanceRecord.noted_at && formatDate(latestAttendanceRecord.noted_at)}
-							</Text>
-						</View>
-					)}
-				</View>
-
-				<View style={styles.childActions}>
-					<TouchableOpacity
-						style={styles.childActionButton}
-						onPress={() => navigateToChildGrades(item)}
-					>
-						<Icon name='award' size={16} color='#4A90E2' />
-						<Text style={styles.childActionText}>Grades</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
-						style={styles.childActionButton}
-						onPress={() => navigateToChildSchedule(item)}
-					>
-						<Icon name='calendar' size={16} color='#4A90E2' />
-						<Text style={styles.childActionText}>Schedule</Text>
-					</TouchableOpacity>
+	const renderChildItem = ({ item }: { item: ChildData }) => (
+		<TouchableOpacity 
+			onPress={() => navigateToChildGrades(item)} 
+			style={[styles.childCard, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}
+		>
+			<View style={styles.childInfoContainer}>
+				{item.avatar ? (
+					<Image source={{ uri: item.avatar }} style={styles.avatar} />
+				) : (
+					getChildAvatar(item.firstName, item.lastName)
+				)}
+				<View style={styles.childDetails}>
+					<Text style={[styles.childName, { color: theme.text }]}>{`${item.firstName} ${item.lastName}`}</Text>
+					{item.className && <Text style={[styles.childClass, { color: theme.textSecondary }]}>{item.className}</Text>}
 				</View>
 			</View>
-		)
-	}
+			<View style={[styles.childActionsContainer, { borderTopColor: theme.separator }]}>
+				<TouchableOpacity
+					style={[styles.actionButton, styles.gradesButton]}
+					onPress={() => navigateToChildGrades(item)}
+				>
+					<Icon name='bar-chart-2' size={16} color='#FFF' />
+					<Text style={styles.actionButtonText}>View Grades</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.actionButton, styles.scheduleButton]}
+					onPress={() => navigateToChildSchedule(item)}
+				>
+					<Icon name='calendar' size={16} color='#FFF' />
+					<Text style={styles.actionButtonText}>View Schedule</Text>
+				</TouchableOpacity>
+			</View>
+		</TouchableOpacity>
+	)
 
 	// Render notification item
 	const renderNotificationItem = ({ item }: { item: ParentNotification }) => (
 		<TouchableOpacity
 			style={[
 				styles.notificationItem,
-				item.read ? styles.notificationRead : styles.notificationUnread,
+				{ 
+					backgroundColor: theme.cardBackground,
+					borderColor: theme.border,
+					shadowColor: theme.text
+				},
+				item.read ? { opacity: 0.8 } : {}
 			]}
 			onPress={() => handleNotificationPress(item)}
 		>
@@ -377,56 +285,60 @@ const ParentDashboardScreen = () => {
 			</View>
 
 			<View style={styles.notificationContent}>
-				<Text style={styles.notificationTitle}>{item.title}</Text>
-				<Text style={styles.notificationMessage} numberOfLines={2}>
+				<Text style={[styles.notificationTitle, { color: theme.text }]}>{item.title}</Text>
+				<Text style={[styles.notificationMessage, { color: theme.textSecondary }]} numberOfLines={2}>
 					{item.message}
 				</Text>
-				<Text style={styles.notificationDate}>{formatDate(item.date)}</Text>
+				<Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
 			</View>
 
-			{!item.read && <View style={styles.unreadIndicator} />}
+			{!item.read && <View style={[styles.unreadIndicator, { backgroundColor: theme.primary }]} />}
 		</TouchableOpacity>
 	)
 
 	if (loading) {
 		return (
-			<View style={styles.loadingContainer}>
-				<ActivityIndicator size='large' color='#4A90E2' />
-				<Text style={styles.loadingText}>Loading dashboard...</Text>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+					<ActivityIndicator size='large' color={theme.primary} />
+					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading dashboard...</Text>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	if (error) {
 		return (
-			<View style={styles.errorContainer}>
-				<Icon name='alert-circle' size={50} color='#F44336' />
-				<Text style={styles.errorText}>{error}</Text>
-				<TouchableOpacity style={styles.retryButton} onPress={() => setLoading(true)}>
-					<Text style={styles.retryButtonText}>Retry</Text>
-				</TouchableOpacity>
-			</View>
+			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+				<View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+					<Icon name='alert-circle' size={50} color={theme.danger} />
+					<Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+					<TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.primary }]} onPress={() => setLoading(true)}>
+						<Text style={[styles.retryButtonText, { color: '#FFFFFF' }]}>Retry</Text>
+					</TouchableOpacity>
+				</View>
+			</SafeAreaView>
 		)
 	}
 
 	const unreadCount = notifications.filter(n => !n.read).length
 
 	return (
-		<SafeAreaView style={styles.container}>
+		<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
 			<RealtimeScoreNotifications />
 
-			<ScrollView style={styles.scrollView}>
+			<ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]}>
 				{/* Parent Welcome Header */}
-				<View style={styles.header}>
+				<View style={[styles.header, { backgroundColor: theme.primary }]}>
 					<View>
-						<Text style={styles.headerTitle}>Parent Dashboard</Text>
-						<Text style={styles.headerSubtitle}>Monitor your children's progress</Text>
+						<Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>Parent Dashboard</Text>
+						<Text style={[styles.headerSubtitle, { color: 'rgba(255, 255, 255, 0.8)' }]}>Monitor your children's progress</Text>
 					</View>
 				</View>
 
 				{/* Children Section */}
 				<View style={styles.sectionContainer}>
-					<Text style={styles.sectionTitle}>My Children</Text>
+					<Text style={[styles.sectionTitle, { color: theme.text }]}>My Children</Text>
 
 					<FlatList
 						data={children}
@@ -435,7 +347,7 @@ const ParentDashboardScreen = () => {
 						scrollEnabled={false}
 						ListEmptyComponent={() => (
 							<View style={styles.emptyContainer}>
-								<Text style={styles.emptyText}>No children found</Text>
+								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No children found</Text>
 							</View>
 						)}
 					/>
@@ -444,36 +356,27 @@ const ParentDashboardScreen = () => {
 				{/* Notifications Section */}
 				<View style={styles.sectionContainer}>
 					<View style={styles.sectionHeader}>
-						<Text style={styles.sectionTitle}>Notifications</Text>
+						<Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
 
 						{unreadCount > 0 && (
-							<View style={styles.badgeContainer}>
-								<Text style={styles.badgeText}>{unreadCount}</Text>
+							<View style={[styles.badgeContainer, { backgroundColor: theme.danger }]}>
+								<Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{unreadCount}</Text>
 							</View>
 						)}
 
 						<TouchableOpacity style={styles.viewAllButton} onPress={handleViewAllNotifications}>
-							<Text style={styles.viewAllText}>View All</Text>
+							<Text style={[styles.viewAllText, { color: theme.primary }]}>View All</Text>
 						</TouchableOpacity>
 					</View>
 
-					<ParentNotificationManager
-						onNotificationsChanged={updatedNotifications => {
-							// Update local state with all notifications
-							// Only display the top 5 in the dashboard UI, but we have all data available
-							setNotifications(updatedNotifications.slice(0, 5)) // Limit display to 5 in the UI only
-						}}
-						maxDashboardNotifications={5} // Keep this parameter for consistency
-					/>
-
 					<FlatList
-						data={notifications} // Use the already limited notifications from state
+						data={notifications.slice(0, 3)}
 						renderItem={renderNotificationItem}
 						keyExtractor={item => item.id}
 						scrollEnabled={false}
 						ListEmptyComponent={() => (
 							<View style={styles.emptyContainer}>
-								<Text style={styles.emptyText}>No notifications</Text>
+								<Text style={[styles.emptyText, { color: theme.textSecondary }]}>No notifications</Text>
 							</View>
 						)}
 					/>
@@ -544,7 +447,7 @@ const styles = StyleSheet.create({
 		color: '#4A90E2',
 		fontSize: 14,
 	},
-	childItem: {
+	childCard: {
 		backgroundColor: '#FFFFFF',
 		borderRadius: 10,
 		padding: 15,
@@ -555,7 +458,7 @@ const styles = StyleSheet.create({
 		shadowRadius: 4,
 		elevation: 3,
 	},
-	childHeader: {
+	childInfoContainer: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		marginBottom: 10,
@@ -580,7 +483,7 @@ const styles = StyleSheet.create({
 		fontSize: 18,
 		fontWeight: 'bold',
 	},
-	childInfo: {
+	childDetails: {
 		flex: 1,
 	},
 	childName: {
@@ -588,78 +491,17 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 		color: '#333',
 	},
-	childDetails: {
+	childClass: {
 		fontSize: 14,
 		color: '#666',
-	},
-	childStatsContainer: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		marginBottom: 10,
-	},
-	statBlock: {
-		flex: 1,
-	},
-	statLabel: {
-		fontSize: 12,
-		color: '#666',
-	},
-	statValue: {
-		fontSize: 14,
-		fontWeight: 'bold',
-		color: '#333',
-	},
-	statDivider: {
-		width: 1,
-		height: '100%',
-		backgroundColor: '#EEE',
-	},
-	attendanceBar: {
-		height: 10,
-		backgroundColor: '#EEE',
-		borderRadius: 5,
-		marginBottom: 4,
-	},
-	attendanceValue: {
-		height: '100%',
-		borderRadius: 5,
-	},
-	attendanceText: {
-		fontSize: 12,
-		color: '#666',
-	},
-	latestUpdatesContainer: {
-		marginTop: 10,
-		padding: 10,
-		backgroundColor: '#F8F9FA',
-		borderRadius: 8,
-	},
-	latestScoreContainer: {
-		marginBottom: 6,
-	},
-	latestAttendanceContainer: {
-		marginTop: 6,
-	},
-	latestUpdateLabel: {
-		fontSize: 12,
-		color: '#666666',
-		fontWeight: '500',
-	},
-	latestScoreValue: {
-		fontSize: 14,
-		color: '#4A90E2',
-		fontWeight: 'bold',
-	},
-	latestAttendanceValue: {
-		fontSize: 14,
-		fontWeight: 'bold',
-	},
-	latestUpdateTime: {
-		fontSize: 11,
-		color: '#999999',
 		marginTop: 2,
 	},
-	childActions: {
+	childActivity: {
+		fontSize: 12,
+		color: '#999',
+		marginTop: 2,
+	},
+	childActionsContainer: {
 		flexDirection: 'row',
 		justifyContent: 'space-around',
 		marginTop: 10,
@@ -667,15 +509,21 @@ const styles = StyleSheet.create({
 		borderTopColor: '#EEE',
 		paddingTop: 10,
 	},
-	childActionButton: {
+	actionButton: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		paddingVertical: 8,
 		paddingHorizontal: 12,
 		borderRadius: 20,
 	},
-	childActionText: {
-		color: '#4A90E2',
+	gradesButton: {
+		backgroundColor: '#4CAF50',
+	},
+	scheduleButton: {
+		backgroundColor: '#2196F3',
+	},
+	actionButtonText: {
+		color: '#FFFFFF',
 		fontSize: 13,
 		fontWeight: '500',
 		marginLeft: 6,
