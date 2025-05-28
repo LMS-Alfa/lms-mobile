@@ -17,6 +17,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/Feather';
 import { useAuthStore } from '../../store/authStore';
 import { getStudentCourses, Course } from '../../services/courseService';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 // Define navigation type
 type RootStackParamList = {
@@ -46,19 +47,20 @@ interface ExtendedCourse extends Course {
   image_url?: string;
 }
 
-// Array of background colors for course cards
-const CARD_COLORS = [
-  { bg: '#EBF3FE', text: '#2C73D2', accent: '#4A90E2' },
-  { bg: '#FFF0EE', text: '#D23A2C', accent: '#FF6B6B' },
-  { bg: '#F0F9EA', text: '#5BAD2E', accent: '#8BC34A' },
-  { bg: '#FFF8E6', text: '#F49C00', accent: '#FFC107' },
-  { bg: '#F4EAFA', text: '#9C27B0', accent: '#BB86FC' },
-  { bg: '#E8F8F5', text: '#16A085', accent: '#1ABC9C' },
-  { bg: '#FDEBED', text: '#C0392B', accent: '#E74C3C' },
-  { bg: '#ECF0F1', text: '#34495E', accent: '#7F8C8D' }
+// Function to generate card colors based on theme
+const getCardColors = (theme: any) => [
+  { bg: theme.cardBackground, text: theme.text, accent: theme.primary, tagText: theme.cardBackground },
+  { bg: theme.cardBackground, text: theme.text, accent: theme.success, tagText: theme.cardBackground },
+  { bg: theme.cardBackground, text: theme.text, accent: theme.warning, tagText: theme.textInverse }, // Assuming textInverse for good contrast on warning
+  { bg: theme.cardBackground, text: theme.text, accent: theme.danger, tagText: theme.cardBackground },
+  { bg: theme.cardBackground, text: theme.text, accent: theme.info, tagText: theme.cardBackground }, 
+  // Add more variants if theme supports them, or use a programmatic approach for more variety
 ];
 
 const CoursesScreen = () => {
+  const { theme } = useAppTheme();
+  const cardColors = getCardColors(theme);
+
   const [courses, setCourses] = useState<ExtendedCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -88,6 +90,7 @@ const CoursesScreen = () => {
     } catch (err) {
       console.error('Error fetching courses:', err);
       setError('Failed to load courses. Please try again.');
+      setCourses([]); // Clear on error
     } finally {
       setLoading(false);
     }
@@ -104,9 +107,8 @@ const CoursesScreen = () => {
   };
 
   const renderCourseItem = ({ item, index }: { item: ExtendedCourse, index: number }) => {
-    // Get a random color scheme from our colors array
-    const colorIndex = item.id ? Math.abs(item.id % CARD_COLORS.length) : index % CARD_COLORS.length;
-    const colorScheme = CARD_COLORS[colorIndex] || CARD_COLORS[0]; // Fallback to first color if undefined
+    const colorIndex = item.id ? Math.abs(item.id % cardColors.length) : index % cardColors.length;
+    const colorScheme = cardColors[colorIndex] || cardColors[0];
     
     // Set a default image for courses that don't have one
     const courseImage = item.image_url || 
@@ -119,7 +121,7 @@ const CoursesScreen = () => {
       <TouchableOpacity 
         style={[
           styles.courseCard,
-          { backgroundColor: colorScheme.bg },
+          { backgroundColor: colorScheme.bg, shadowColor: theme.text },
           isAlternateLayout ? styles.courseCardAlt : null
         ]} 
         onPress={() => navigation.navigate('CourseDetail', { courseId: item.id })}
@@ -133,14 +135,14 @@ const CoursesScreen = () => {
           <View style={styles.courseImageOverlay}>
             <View style={styles.courseImageContent}>
               <View style={[styles.courseTag, { backgroundColor: colorScheme.accent }]}>
-                <Text style={styles.courseTagText}>{item.code || 'Course'}</Text>
+                <Text style={[styles.courseTagText, { color: colorScheme.tagText }]}>{item.code || 'Course'}</Text>
               </View>
               
-              <Text style={styles.courseTitle}>{item.subjectname}</Text>
+              <Text style={[styles.courseTitle, { color: '#FFFFFF' }]}>{item.subjectname}</Text>
               
               <View style={styles.courseInstructorContainer}>
                 <Icon name="user" size={14} color="#FFFFFF" />
-                <Text style={styles.courseInstructor}>
+                <Text style={[styles.courseInstructor, { color: '#E0E0E0' }]}>
                   {item.teacherName || 'No Teacher Assigned'}
                 </Text>
               </View>
@@ -160,7 +162,7 @@ const CoursesScreen = () => {
               <Text style={[styles.progressText, { color: colorScheme.text }]}>Progress</Text>
               <Text style={[styles.progressValue, { color: colorScheme.accent }]}>{item.progress || 0}%</Text>
             </View>
-            <View style={styles.progressBarBackground}>
+            <View style={[styles.progressBarBackground, { backgroundColor: theme.disabled }]}>
               <View 
                 style={[
                   styles.progressBarFill, 
@@ -193,49 +195,57 @@ const CoursesScreen = () => {
     );
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading your courses...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading your courses...</Text>
       </View>
     );
   }
 
-  if (error) {
+  if (error && !refreshing) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="alert-circle" size={50} color="#F44336" />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadCourses}>
-          <Text style={styles.retryButtonText}>Retry</Text>
+      <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+        <Icon name="alert-circle" size={50} color={theme.danger} />
+        <Text style={[styles.errorTextPrompt, { color: theme.danger }]}>{error}</Text>
+        <TouchableOpacity 
+          style={[styles.retryButton, { backgroundColor: theme.primary }]}
+          onPress={loadCourses}
+        >
+          <Text style={[styles.retryButtonText, { color: theme.cardBackground }]}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
         data={courses}
         renderItem={renderCourseItem}
         keyExtractor={item => item.id.toString()}
         contentContainerStyle={styles.listContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            colors={[theme.primary]}
+            tintColor={theme.primary}
+          />
         }
         ListHeaderComponent={() => (
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>My Courses</Text>
-            <Text style={styles.headerSubtitle}>
+          <View style={[styles.header, { borderBottomColor: theme.separator }]}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>My Courses</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
               You are enrolled in {courses.length} courses
             </Text>
           </View>
         )}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
-            <Icon name="book" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>You are not enrolled in any courses yet</Text>
+            <Icon name="book-open" size={50} color={theme.textSecondary} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>You are not enrolled in any courses yet</Text>
           </View>
         )}
       />
@@ -248,7 +258,6 @@ const { width } = Dimensions.get('window');
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
   },
   listContainer: {
     padding: 16,
@@ -401,9 +410,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
     padding: 20,
   },
-  errorText: {
+  errorTextPrompt: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 20,

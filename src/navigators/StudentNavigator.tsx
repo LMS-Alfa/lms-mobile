@@ -8,6 +8,7 @@ import AssignmentDetailScreen from '../screens/student/AssignmentDetailScreen';
 import SubjectGradesScreen from '../screens/student/SubjectGradesScreen';
 import SettingsScreen from '@/screens/student/SettingsScreen';
 import ChangePasswordScreen from '@/screens/student/ChangePasswordScreen';
+import EditProfileScreen from '@/screens/student/EditProfileScreen';
 import { useAppTheme } from '../contexts/ThemeContext';
 
 const Stack = createStackNavigator();
@@ -96,6 +97,19 @@ const StudentNavigator = () => {
         options={{
           headerShown: true,
           title: 'Change Password',
+          ...Platform.select({
+            ios: {
+              headerBackTitle: 'Back',
+            },
+          }),
+        }}
+      />
+      <Stack.Screen 
+        name="EditProfile" 
+        component={EditProfileScreen}
+        options={{
+          headerShown: true,
+          title: 'Edit Profile',
           ...Platform.select({
             ios: {
               headerBackTitle: 'Back',

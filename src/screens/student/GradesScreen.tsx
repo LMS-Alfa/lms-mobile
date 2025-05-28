@@ -23,6 +23,7 @@ import {
   getLetterGrade, 
   getSubjectColor 
 } from '../../services/gradesService';
+import { useAppTheme } from '../../contexts/ThemeContext';
 
 // Define navigation types
 type RootStackParamList = {
@@ -40,38 +41,50 @@ const formatDate = (dateString: string) => {
   });
 };
 
-// Helper function to get attendance icon
-const getAttendanceIcon = (attendance?: string) => {
+// Updated helper function to get attendance icon with theme
+const getAttendanceIcon = (attendance: string | undefined, theme: any) => {
   if (!attendance) return null;
   
   switch (attendance.toLowerCase()) {
     case 'present':
-      return <Icon name="check-circle" size={14} color="#4CAF50" style={styles.attendanceIcon} />;
+      return <Icon name="check-circle" size={14} color={theme.success} style={styles.attendanceIcon} />;
     case 'absent':
-      return <Icon name="x-circle" size={14} color="#F44336" style={styles.attendanceIcon} />;
+      return <Icon name="x-circle" size={14} color={theme.danger} style={styles.attendanceIcon} />;
     case 'late':
-      return <Icon name="clock" size={14} color="#FF9800" style={styles.attendanceIcon} />;
+      return <Icon name="clock" size={14} color={theme.warning} style={styles.attendanceIcon} />;
     case 'excused':
-      return <Icon name="alert-circle" size={14} color="#9E9E9E" style={styles.attendanceIcon} />;
+      return <Icon name="alert-circle" size={14} color={theme.textSecondary} style={styles.attendanceIcon} />;
     default:
       return null;
   }
 };
 
-// Get color for attendance status
-const getAttendanceColor = (attendance?: string) => {
-  if (!attendance) return '#999999';
+// Updated to get color for attendance status with theme
+const getAttendanceColor = (attendance: string | undefined, theme: any) => {
+  if (!attendance) return theme.textSecondary;
   
   switch (attendance.toLowerCase()) {
-    case 'present': return '#4CAF50';
-    case 'absent': return '#F44336';
-    case 'late': return '#FF9800';
-    case 'excused': return '#9E9E9E';
-    default: return '#999999';
+    case 'present': return theme.success;
+    case 'absent': return theme.danger;
+    case 'late': return theme.warning;
+    case 'excused': return theme.textSecondary; // Or a specific theme color for excused
+    default: return theme.textSecondary;
   }
 };
 
+// Temporary fallback for subject colors - ideally, this logic moves to gradesService or is mapped from a theme object
+const getDynamicSubjectColor = (subjectName: string, theme: any) => {
+  // Simple hash to get a somewhat consistent color - replace with better logic or from theme if available
+  let hash = 0;
+  for (let i = 0; i < subjectName.length; i++) {
+    hash = subjectName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [theme.primary, theme.success, theme.warning, theme.danger, theme.info]; // Add more from theme if needed
+  return colors[Math.abs(hash) % colors.length] || theme.primary;
+};
+
 const GradesScreen = () => {
+  const { theme } = useAppTheme();
   const [subjects, setSubjects] = useState<SubjectGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,27 +93,31 @@ const GradesScreen = () => {
   const navigation = useNavigation<SubjectGradesNavigationProp>();
   const { user } = useAuthStore();
   
-  // Load grades data from Supabase
   const loadGrades = async () => {
     if (!user) {
       setError('User not authenticated');
       setLoading(false);
       return;
     }
-
+    setLoading(true);
+    setError(null);
     try {
-      setError(null);
       const gradesData = await getStudentGrades(user.id);
-      setSubjects(gradesData);
+      // Assign dynamic colors to subjects if not already provided by service
+      const themedSubjects = gradesData.map(subject => ({
+        ...subject,
+        color: subject.color || getDynamicSubjectColor(subject.subjectName, theme)
+      }));
+      setSubjects(themedSubjects);
     } catch (err) {
       console.error('Error fetching grades:', err);
       setError('Failed to load grades. Please try again.');
+      setSubjects([]); // Clear on error
     } finally {
       setLoading(false);
     }
   };
 
-  // Load grades on component mount
   useEffect(() => {
     loadGrades();
   }, [user]);
@@ -111,29 +128,40 @@ const GradesScreen = () => {
     setRefreshing(false);
   };
 
+  const getGradeColor = (grade: string) => {
+    if (grade.startsWith('A')) return theme.success;
+    if (grade.startsWith('B')) return theme.success; // Or a slightly different shade like theme.info
+    if (grade.startsWith('C')) return theme.warning;
+    if (grade.startsWith('D')) return theme.orange; // Assuming theme.orange exists
+    if (grade.startsWith('F')) return theme.danger;
+    return theme.textSecondary; // Default for other grades/statuses
+};
+
   const renderSubjectItem = ({ item }: { item: SubjectGrade }) => {
     const isSelected = selectedSubject && selectedSubject.id === item.id;
+    const subjectDisplayColor = item.color || getDynamicSubjectColor(item.subjectName, theme);
     
     return (
       <TouchableOpacity 
         style={[
           styles.subjectCard,
-          isSelected && { borderColor: item.color, borderWidth: 2 }
+          { backgroundColor: theme.cardBackground, shadowColor: theme.text },
+          isSelected && { borderColor: subjectDisplayColor, borderWidth: 2 }
         ]}
         onPress={() => setSelectedSubject(isSelected ? null : item)}
       >
         <View style={styles.subjectHeader}>
-          <View style={[styles.subjectIconContainer, { backgroundColor: item.color }]}>
-            <Text style={styles.subjectIconText}>{item.subjectName.charAt(0)}</Text>
+          <View style={[styles.subjectIconContainer, { backgroundColor: subjectDisplayColor + '33' }]}>
+            <Text style={[styles.subjectIconText, {color: subjectDisplayColor}]}>{item.subjectName.charAt(0)}</Text>
           </View>
           <View style={styles.subjectInfo}>
-            <Text style={styles.subjectName}>{item.subjectName}</Text>
-            <Text style={styles.teacherName}>{item.teacherName}</Text>
+            <Text style={[styles.subjectName, { color: theme.text }]}>{item.subjectName}</Text>
+            <Text style={[styles.teacherName, { color: theme.textSecondary }]}>{item.teacherName}</Text>
           </View>
           <View style={styles.gradeContainer}>
             <Text style={[
               styles.gradeText, 
-              { color: item.hasGrades ? getSubjectColor(item.subjectName) : '#999999' }
+              { color: item.hasGrades ? getGradeColor(item.averageGrade) : theme.textSecondary }
             ]}>
               {item.averageGrade}
             </Text>
@@ -141,29 +169,29 @@ const GradesScreen = () => {
         </View>
         
         {isSelected && (
-          <View style={styles.gradesListContainer}>
-            <Text style={styles.gradesListTitle}>Recent Grades</Text>
+          <View style={[styles.gradesListContainer, { borderTopColor: theme.separator }]}>
+            <Text style={[styles.gradesListTitle, { color: theme.text }]}>Recent Grades</Text>
             
             {item.grades.length > 0 ? (
               item.grades.slice(0, 5).map(grade => (
-                <View key={grade.id} style={styles.gradeItem}>
+                <View key={grade.id} style={[styles.gradeItem, { borderBottomColor: theme.separator }]}>
                   <View style={styles.gradeItemLeft}>
-                    <Text style={styles.gradeItemTitle}>{grade.title}</Text>
+                    <Text style={[styles.gradeItemTitle, { color: theme.text }]}>{grade.title}</Text>
                     <View style={styles.gradeItemDateContainer}>
-                      <Text style={styles.gradeItemDate}>{formatDate(grade.date)}</Text>
-                      {getAttendanceIcon(grade.attendance)}
+                      <Text style={[styles.gradeItemDate, { color: theme.textSecondary }]}>{formatDate(grade.date)}</Text>
+                      {getAttendanceIcon(grade.attendance, theme)}
                     </View>
                   </View>
                   <View style={styles.gradeItemRight}>
                     {grade.score !== null ? (
                       <>
-                        <View style={[styles.gradeBadge, { backgroundColor: getSubjectColor(grade.grade) }]}>
+                        <View style={[styles.gradeBadge, { backgroundColor: getGradeColor(grade.grade) }]}>
                           <Text style={styles.gradeBadgeText}>{grade.grade}</Text>
                         </View>
-                        <Text style={styles.scoreText}>{grade.score}</Text>
+                        <Text style={[styles.scoreText, { color: theme.textSecondary }]}>{grade.score}</Text>
                       </>
                     ) : (
-                      <View style={[styles.attendanceBadge, { backgroundColor: getAttendanceColor(grade.attendance) }]}>
+                      <View style={[styles.attendanceBadge, { backgroundColor: getAttendanceColor(grade.attendance, theme) }]}>
                         <Text style={styles.gradeBadgeText}>{grade.attendance}</Text>
                       </View>
                     )}
@@ -171,18 +199,18 @@ const GradesScreen = () => {
                 </View>
               ))
             ) : (
-              <Text style={styles.noGradesText}>No grades available for this subject</Text>
+              <Text style={[styles.noGradesText, { color: theme.textSecondary }]}>No grades available for this subject</Text>
             )}
             
             {item.grades.length > 0 && (
               <TouchableOpacity 
-                style={styles.viewAllButton}
+                style={[styles.viewAllButton, { backgroundColor: theme.primary + '20'}] }
                 onPress={() => navigation.navigate('SubjectGrades', { 
                   subjectId: item.id,
                   subjectName: item.subjectName
                 })}
               >
-                <Text style={styles.viewAllText}>View All Grades</Text>
+                <Text style={[styles.viewAllText, { color: theme.primary }]}>View All Grades</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -191,262 +219,271 @@ const GradesScreen = () => {
     );
   };
 
-  if (loading) {
+  if (loading && !refreshing) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4A90E2" />
-        <Text style={styles.loadingText}>Loading your grades...</Text>
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading your grades...</Text>
       </View>
     );
   }
 
-  if (error) {
+  if (error && !refreshing) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="alert-circle" size={50} color="#F44336" />
-        <Text style={styles.errorText}>{error}</Text>
+      <View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
+        <Icon name="alert-circle" size={50} color={theme.danger} />
+        <Text style={[styles.errorTextPrompt, { color: theme.danger }]}>{error}</Text>
         <TouchableOpacity 
-          style={styles.retryButton}
+          style={[styles.retryButton, { backgroundColor: theme.primary }]}
           onPress={loadGrades}
         >
-          <Text style={styles.retryButtonText}>Retry</Text>
+          <Text style={[styles.retryButtonText, { color: theme.cardBackground }]}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Filter subjects with grades for GPA calculation
   const subjectsWithGrades = subjects.filter(subject => subject.hasGrades);
   const gpaValue = calculateGPA(subjects);
 
   return (
-    <View style={styles.container}>
-      {/* Header with GPA */}
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { backgroundColor: theme.primary, shadowColor: theme.text }]}>
         <View style={styles.gpaContainer}>
-          <Text style={styles.gpaLabel}>Current GPA</Text>
-          <Text style={styles.gpaValue}>{gpaValue}</Text>
+          <Text style={[styles.gpaLabel, { color: theme.cardBackground }]}>Current GPA</Text>
+          <Text style={[styles.gpaValue, { color: theme.cardBackground }]}>{gpaValue}</Text>
         </View>
         
         <View style={styles.semesterInfo}>
-          <Text style={styles.semesterLabel}>Current Term</Text>
-          <Text style={styles.courseCount}>{subjects.length} Courses</Text>
+          <Text style={[styles.semesterLabel, { color: theme.cardBackground + 'aa'}]}>Current Term</Text>
+          <Text style={[styles.courseCount, { color: theme.cardBackground }]}>{subjects.length} Courses</Text>
         </View>
       </View>
       
-      {/* Grade Summary Cards */}
-      <View style={styles.summaryContainer}>
+      {error && refreshing && (
+        <View style={[styles.inlineErrorView, {backgroundColor: theme.danger + '33'}]}>
+          <Text style={[styles.inlineErrorText, {color: theme.danger}]}>Refresh failed. Please try again.</Text>
+        </View>
+      )}
+
+      <View style={styles.summaryOuterContainer}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.summaryScrollContent}
         >
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>A's</Text>
-            <Text style={styles.summaryValue}>
-              {subjectsWithGrades.filter(s => s.averageGrade.startsWith('A')).length}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>B's</Text>
-            <Text style={styles.summaryValue}>
-              {subjectsWithGrades.filter(s => s.averageGrade.startsWith('B')).length}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>C's</Text>
-            <Text style={styles.summaryValue}>
-              {subjectsWithGrades.filter(s => s.averageGrade.startsWith('C')).length}
-            </Text>
-          </View>
-          
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>D's or Below</Text>
-            <Text style={styles.summaryValue}>
-              {subjectsWithGrades.filter(s => 
-                s.averageGrade.startsWith('D') || 
-                s.averageGrade.startsWith('F')
-              ).length}
-            </Text>
-          </View>
+          {['A', 'B', 'C', 'D', 'F'].map(gradeLetter => (
+            <View key={gradeLetter} style={[styles.summaryCard, { backgroundColor: theme.cardBackground, shadowColor: theme.text }]}>
+              <Text style={[styles.summaryLabel, { color: getGradeColor(gradeLetter) }]}>{gradeLetter}'s</Text>
+              <Text style={[styles.summaryValue, { color: theme.text }]}>
+                {subjectsWithGrades.filter(s => s.averageGrade.startsWith(gradeLetter)).length}
+              </Text>
+            </View>
+          ))}
         </ScrollView>
       </View>
       
-      {/* Subjects List */}
-      <FlatList
-        data={subjects}
-        renderItem={renderSubjectItem}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Icon name="bar-chart-2" size={50} color="#ccc" />
-            <Text style={styles.emptyText}>No grades available</Text>
-          </View>
-        )}
-      />
+      {subjects.length === 0 && !loading ? (
+        <View style={styles.emptyListContainer}>
+          <Icon name="award" size={40} color={theme.textSecondary} />
+          <Text style={[styles.emptyListText, {color: theme.textSecondary}]}>No grades or subjects found for this term yet.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={subjects}
+          renderItem={renderSubjectItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.primary]} tintColor={theme.primary}/>
+          }
+        />
+      )}
     </View>
   );
 };
 
-const { width } = Dimensions.get('window');
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTextPrompt: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  retryButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25, 
+  },
+  retryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  inlineErrorView: {
+    padding: 10,
+    alignItems: 'center',
+    marginHorizontal: 16,
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  inlineErrorText: {
+    fontSize: 14,
   },
   header: {
-    backgroundColor: '#4A90E2',
-    padding: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    marginBottom: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  gpaContainer: {
-    alignItems: 'flex-start',
-  },
+  gpaContainer: {},
   gpaLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.8)',
     marginBottom: 4,
   },
   gpaValue: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   semesterInfo: {
     alignItems: 'flex-end',
   },
   semesterLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
-    color: '#FFFFFF',
     marginBottom: 4,
   },
   courseCount: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    fontWeight: '600',
   },
-  summaryContainer: {
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+  summaryOuterContainer: {
+    paddingBottom: 10,
   },
   summaryScrollContent: {
     paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   summaryCard: {
-    backgroundColor: '#F5F7FA',
-    borderRadius: 10,
+    width: Dimensions.get('window').width / 4 - 20,
+    minWidth: 80,
     padding: 12,
-    marginRight: 12,
-    width: width / 4 - 20,
+    borderRadius: 10,
     alignItems: 'center',
+    marginRight: 10,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
   },
   summaryLabel: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 13,
+    fontWeight: '600',
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#333333',
   },
   listContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   subjectCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   subjectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 12,
   },
   subjectIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#4A90E2',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   subjectIconText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   subjectInfo: {
     flex: 1,
   },
   subjectName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#333333',
     marginBottom: 2,
   },
   teacherName: {
-    fontSize: 12,
-    color: '#666666',
+    fontSize: 13,
   },
   gradeContainer: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#F5F7FA',
+    paddingLeft: 10,
   },
   gradeText: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   gradesListContainer: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 12,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   gradesListTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#333333',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   gradeItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
   },
   gradeItemLeft: {
     flex: 1,
+    marginRight: 10,
   },
   gradeItemTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
-    color: '#333333',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   gradeItemDateContainer: {
     flexDirection: 'row',
@@ -454,105 +491,63 @@ const styles = StyleSheet.create({
   },
   gradeItemDate: {
     fontSize: 12,
-    color: '#666666',
   },
   attendanceIcon: {
-    marginLeft: 6,
+    marginLeft: 8,
   },
   gradeItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    minWidth: 60,
   },
   gradeBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginRight: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginBottom: 4,
   },
   attendanceBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   gradeBadgeText: {
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    textAlign: 'center',
   },
   scoreText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
-    color: '#333333',
-    minWidth: 28,
-    textAlign: 'right',
-  },
-  viewAllButton: {
-    alignSelf: 'center',
-    marginTop: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#F5F7FA',
-    borderRadius: 20,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#4A90E2',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F7FA',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#4A90E2',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 20,
   },
   noGradesText: {
     fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
     textAlign: 'center',
+    paddingVertical: 10,
+    fontStyle: 'italic',
+  },
+  viewAllButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    alignItems: 'center',
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyListContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-  }
+  },
+  emptyListText: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 12,
+  },
 });
 
+export default GradesScreen; 
 export default GradesScreen; 
