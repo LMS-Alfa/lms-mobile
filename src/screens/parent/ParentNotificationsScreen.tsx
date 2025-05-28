@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { StackNavigationProp } from '@react-navigation/stack'
-import React, { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
 	ActivityIndicator,
 	Alert,
@@ -13,8 +13,9 @@ import {
 	TouchableOpacity,
 	View,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import Icon from 'react-native-vector-icons/Feather'
-import RealtimeScoreNotifications from '../../components/parent/RealtimeScoreNotifications'
+import ParentNotificationManager from '../../components/parent/ParentNotificationManager'
 import { ParentTabParamList } from '../../navigators/ParentTabNavigator'
 import { ParentNotification } from '../../services/parentService'
 import {
@@ -24,8 +25,6 @@ import {
 } from '../../services/parentSupabaseService'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../utils/supabase'
-import { useAppTheme } from '../../contexts/ThemeContext'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 // Define navigation type
 type ParentNavigationProp = StackNavigationProp<ParentTabParamList>
@@ -60,7 +59,22 @@ const formatDate = (dateString: string) => {
 }
 
 // Get icon for notification type
-const getNotificationIcon = (type: string) => {
+const getNotificationIcon = (type: string, status?: string) => {
+	if (type === 'attendance') {
+		switch (status?.toLowerCase()) {
+			case 'present':
+				return 'check-circle'
+			case 'absent':
+				return 'x-circle'
+			case 'late':
+				return 'clock'
+			case 'excused':
+				return 'alert-circle'
+			default:
+				return 'user-check'
+		}
+	}
+
 	switch (type) {
 		case 'grade':
 			return 'award'
@@ -78,7 +92,24 @@ const getNotificationIcon = (type: string) => {
 }
 
 // Get color for notification type
-const getNotificationColor = (type: string) => {
+const getNotificationColor = (type: string, status?: string) => {
+	// For attendance, return color based on status
+	if (type === 'attendance' && status) {
+		switch (status.toLowerCase()) {
+			case 'present':
+				return '#4CAF50' // Green
+			case 'absent':
+				return '#F44336' // Red
+			case 'late':
+				return '#FF9800' // Orange
+			case 'excused':
+				return '#2196F3' // Blue
+			default:
+				return '#F44336' // Default red for attendance
+		}
+	}
+
+	// For other notification types
 	switch (type) {
 		case 'grade':
 			return '#4A90E2'
@@ -137,20 +168,32 @@ const convertGradeToNotification = (
 ): ParentNotification => {
 	const scoreValue = grade.score || 0
 	const letterGrade = convertScoreToLetterGrade(scoreValue)
-	const date = grade.created_at || new Date().toISOString()
+
+	// Determine title based on whether the grade was updated or new
+	const isUpdated =
+		grade.updated_at &&
+		grade.created_at &&
+		new Date(grade.updated_at).getTime() > new Date(grade.created_at).getTime()
+
+	const title = `${isUpdated ? 'Updated' : 'New'} Grade: ${letterGrade} in ${subjectName}`
+
+	// Use updated_at if it exists and is newer than created_at, otherwise use created_at
+	const date = grade.updated_at || grade.created_at || new Date().toISOString()
 
 	// Get lesson name if available (will need to be joined from lessons table)
-	const lessonName = grade.lesson?.lessonname || 'an assignment'
+	const lessonName = grade.lessonName || 'an assignment'
 
 	return {
 		id: `grade-${grade.id}`,
-		title: `New Grade: ${letterGrade} in ${subjectName}`,
+		title,
 		message: `${studentName} received a score of ${scoreValue} on ${lessonName}`,
 		date,
+		created_at: grade.created_at,
+		updated_at: grade.updated_at,
 		type: 'grade',
 		read: false,
 		relatedStudentId: grade.student_id,
-		relatedSubjectId: grade.lesson?.subjectid || 0,
+		relatedSubjectId: grade.subjectId || 0,
 	}
 }
 
@@ -161,6 +204,71 @@ const convertScoreToLetterGrade = (score: number): string => {
 	if (score >= 5) return 'C'
 	if (score >= 3) return 'D'
 	return 'F'
+}
+
+// Helper function to fetch attendance for notifications (avoids relationship issues)
+const fetchAttendanceForNotifications = async (studentId: string): Promise<any[]> => {
+	try {
+		// Get basic attendance data without complex joins
+		const { data, error } = await supabase
+			.from('attendance')
+			.select('id, status, noted_at, student_id, lesson_id')
+			.eq('student_id', studentId)
+			.order('noted_at', { ascending: false })
+			.limit(3)
+
+		if (error) {
+			throw error
+		}
+
+		if (!data || data.length === 0) {
+			return []
+		}
+
+		// For each attendance record, fetch the lesson and subject data separately
+		const attendanceWithDetails = await Promise.all(
+			data.map(async record => {
+				// Get lesson details
+				const { data: lessonData, error: lessonError } = await supabase
+					.from('lessons')
+					.select('id, lessonname, subjectid')
+					.eq('id', record.lesson_id)
+					.single()
+
+				if (lessonError || !lessonData) {
+					return {
+						id: record.id,
+						status: record.status,
+						date: record.noted_at,
+						lessonName: 'Unknown Lesson',
+						subjectName: 'Unknown Subject',
+						subjectId: null,
+					}
+				}
+
+				// Get subject details
+				const { data: subjectData, error: subjectError } = await supabase
+					.from('subjects')
+					.select('id, subjectname')
+					.eq('id', lessonData.subjectid)
+					.single()
+
+				return {
+					id: record.id,
+					status: record.status,
+					date: record.noted_at,
+					lessonName: lessonData.lessonname || 'Unknown Lesson',
+					subjectName: subjectData?.subjectname || 'Unknown Subject',
+					subjectId: lessonData.subjectid,
+				}
+			})
+		)
+
+		return attendanceWithDetails
+	} catch (error) {
+		console.error('Error fetching attendance for notifications:', error)
+		return []
+	}
 }
 
 const ParentNotificationsScreen = () => {
@@ -175,7 +283,6 @@ const ParentNotificationsScreen = () => {
 
 	const navigation = useNavigation<ParentNavigationProp>()
 	const { user } = useAuthStore()
-	const { theme } = useAppTheme()
 
 	// Load notifications when component mounts
 	useEffect(() => {
@@ -184,7 +291,7 @@ const ParentNotificationsScreen = () => {
 
 	// Refresh notifications when the screen comes into focus
 	useFocusEffect(
-		React.useCallback(() => {
+		useCallback(() => {
 			loadNotifications()
 			return () => {}
 		}, [user])
@@ -259,7 +366,7 @@ const ParentNotificationsScreen = () => {
 			// Add announcements
 			allNotifications = [...notificationsData]
 
-			// Fetch recent grades for each child and convert to notifications
+			// Fetch recent grades and attendance for each child
 			if (childIds.length > 0) {
 				for (const childId of childIds) {
 					try {
@@ -271,20 +378,53 @@ const ParentNotificationsScreen = () => {
 						// Take only the most recent grades (up to 3)
 						const recentGrades = grades.slice(0, 3)
 
-						// Only log success, don't show alert
-						console.log(`Found ${recentGrades.length} recent grades for ${childName}`)
+						// Log the grades data to debug the created_at field
+						console.log(
+							'Recent grades with date information:',
+							recentGrades.map(g => ({
+								id: g.id,
+								score: g.score,
+								created_at: g.date, // This is the created_at timestamp
+								lessonName: g.lessonName,
+							}))
+						)
 
 						// Convert each grade to a notification
 						for (const grade of recentGrades) {
 							const notification = convertGradeToNotification(grade, childName, grade.subjectName)
+
+							// Log the grade date and notification date for debugging
+							console.log(`Grade date: ${grade.date}, Notification date: ${notification.date}`)
 
 							// Check if we already have this grade in our read notifications
 							notification.read = readNotifications[notification.id] === true
 
 							allNotifications.push(notification)
 						}
+
+						// Fetch attendance for this child
+						const attendance = await fetchAttendanceForNotifications(childId)
+
+						// Only log success, don't show alert
+						console.log(`Found ${attendance.length} recent attendance records for ${childName}`)
+
+						// Convert each attendance to a notification
+						for (const record of attendance) {
+							const notification: ParentNotification = {
+								id: `attendance-${record.id}`,
+								title: `Attendance: ${record.status} in ${record.subjectName}`,
+								message: `${childName} was marked ${record.status} for ${record.lessonName}`,
+								date: record.date,
+								type: 'attendance',
+								read: readNotifications[`attendance-${record.id}`] === true,
+								relatedStudentId: childId,
+								relatedSubjectId: record.subjectId || 0,
+							}
+
+							allNotifications.push(notification)
+						}
 					} catch (error) {
-						console.error(`Error fetching grades for child ${childId}:`, error)
+						console.error(`Error fetching data for child ${childId}:`, error)
 						// Don't show alert for each error, just log it
 					}
 				}
@@ -326,13 +466,13 @@ const ParentNotificationsScreen = () => {
 			if (activeFilter === 'parent') {
 				// Filter for parent-specific announcements
 				result = result.filter(
-					notif =>
+					(notif: ParentNotification) =>
 						notif.type === 'announcement' &&
 						!['grade', 'attendance', 'behavior', 'event'].includes(notif.type)
 				)
 			} else {
 				// Regular type filtering
-				result = result.filter(notif => notif.type === activeFilter)
+				result = result.filter((notif: ParentNotification) => notif.type === activeFilter)
 			}
 		}
 
@@ -340,7 +480,7 @@ const ParentNotificationsScreen = () => {
 		if (searchQuery) {
 			const query = searchQuery.toLowerCase()
 			result = result.filter(
-				notif =>
+				(notif: ParentNotification) =>
 					notif.title.toLowerCase().includes(query) || notif.message.toLowerCase().includes(query)
 			)
 		}
@@ -418,7 +558,7 @@ const ParentNotificationsScreen = () => {
 			const readNotifications = readNotificationsJson ? JSON.parse(readNotificationsJson) : {}
 
 			// Mark all as read in the object
-			notifications.forEach(notification => {
+			notifications.forEach((notification: ParentNotification) => {
 				readNotifications[notification.id] = true
 			})
 
@@ -426,9 +566,14 @@ const ParentNotificationsScreen = () => {
 			await AsyncStorage.setItem('readParentNotifications', JSON.stringify(readNotifications))
 
 			// Update local state
-			const updatedNotifications = notifications.map(n => ({ ...n, read: true }))
+			const updatedNotifications = notifications.map((n: ParentNotification) => ({
+				...n,
+				read: true,
+			}))
 			setNotifications(updatedNotifications)
-			setFilteredNotifications(filteredNotifications.map(n => ({ ...n, read: true })))
+			setFilteredNotifications(
+				filteredNotifications.map((n: ParentNotification) => ({ ...n, read: true }))
+			)
 		} catch (err) {
 			console.error('Error marking all notifications as read:', err)
 			Alert.alert('Error', 'Failed to mark notifications as read')
@@ -439,18 +584,30 @@ const ParentNotificationsScreen = () => {
 	const renderNotificationItem = ({ item }: { item: ParentNotification }) => {
 		const isParentSpecific = item.type === 'announcement'
 		const isGradeNotification = item.type === 'grade'
+		const isAttendanceNotification = item.type === 'attendance'
 		const gradeValue = isGradeNotification ? getGradeValue(item.title) : null
+
+		// Extract attendance status from title for attendance notifications
+		let attendanceStatus = null
+		if (isAttendanceNotification && item.title) {
+			const statusMatch = item.title.match(/Attendance: (\w+) in/i)
+			if (statusMatch && statusMatch[1]) {
+				attendanceStatus = statusMatch[1]
+			}
+		}
 
 		return (
 			<TouchableOpacity
 				style={[
 					styles.notificationItem,
-					{ 
-						backgroundColor: theme.cardBackground,
-						borderColor: theme.border,
-						shadowColor: theme.text
-					},
-					item.read ? { opacity: 0.8 } : {}
+					item.read ? styles.notificationRead : styles.notificationUnread,
+					isParentSpecific && styles.parentSpecificNotification,
+					isGradeNotification && styles.gradeNotification,
+					isAttendanceNotification && styles.attendanceNotification,
+					isAttendanceNotification &&
+						attendanceStatus && {
+							borderColor: getNotificationColor('attendance', attendanceStatus),
+						},
 				]}
 				onPress={() => handleNotificationPress(item)}
 			>
@@ -458,18 +615,29 @@ const ParentNotificationsScreen = () => {
 					style={[
 						styles.notificationIcon,
 						{
-							backgroundColor: isGradeNotification
-								? getGradeBadgeColor(item.message)
-								: getNotificationColor(item.type),
+							backgroundColor:
+								isAttendanceNotification && attendanceStatus
+									? getNotificationColor('attendance', attendanceStatus)
+									: isGradeNotification
+									? getGradeBadgeColor(item.message)
+									: getNotificationColor(item.type),
 						},
 					]}
 				>
-					<Icon name={getNotificationIcon(item.type)} size={20} color='#FFFFFF' />
+					<Icon
+						name={
+							isAttendanceNotification && attendanceStatus
+								? getNotificationIcon('attendance', attendanceStatus)
+								: getNotificationIcon(item.type)
+						}
+						size={20}
+						color='#FFFFFF'
+					/>
 				</View>
 
 				<View style={styles.notificationContent}>
 					<View style={styles.notificationHeader}>
-						<Text style={[styles.notificationTitle, { color: theme.text }]}>
+						<Text style={styles.notificationTitle}>
 							{item.title}
 							{isParentSpecific && <Text style={styles.parentTag}> • Parent</Text>}
 							{isGradeNotification && gradeValue && (
@@ -478,11 +646,32 @@ const ParentNotificationsScreen = () => {
 									• {gradeValue}
 								</Text>
 							)}
+							{isAttendanceNotification && attendanceStatus && (
+								<Text
+									style={[
+										styles.attendanceStatusTag,
+										{ color: getNotificationColor('attendance', attendanceStatus) },
+									]}
+								>
+									{' '}
+									• {attendanceStatus}
+								</Text>
+							)}
 						</Text>
-						{!item.read && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
+						{!item.read && <View style={styles.unreadDot} />}
 					</View>
-					<Text style={[styles.notificationMessage, { color: theme.textSecondary }]}>{item.message}</Text>
-					<Text style={[styles.notificationDate, { color: theme.subtleText }]}>{formatDate(item.date)}</Text>
+					<Text style={styles.notificationMessage}>{item.message}</Text>
+					<Text style={styles.notificationDate}>
+						{isGradeNotification
+							? item.updated_at &&
+							  item.created_at &&
+							  new Date(item.updated_at).getTime() > new Date(item.created_at).getTime()
+								? `Updated: ${formatDate(item.date)}`
+								: `Added: ${formatDate(item.date)}`
+							: isAttendanceNotification
+							? `Noted: ${formatDate(item.date)}`
+							: formatDate(item.date)}
+					</Text>
 				</View>
 			</TouchableOpacity>
 		)
@@ -490,64 +679,65 @@ const ParentNotificationsScreen = () => {
 
 	if (loading) {
 		return (
-			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-				<View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-					<ActivityIndicator size='large' color={theme.primary} />
-					<Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading notifications...</Text>
-				</View>
+			<SafeAreaView style={styles.loadingContainer}>
+				<ActivityIndicator size='large' color='#4A90E2' />
+				<Text style={styles.loadingText}>Loading notifications...</Text>
 			</SafeAreaView>
 		)
 	}
 
 	if (error) {
 		return (
-			<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-				<View style={[styles.errorContainer, { backgroundColor: theme.background }]}>
-					<Icon name='alert-circle' size={50} color={theme.danger} />
-					<Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
-					<TouchableOpacity style={[styles.button, { backgroundColor: theme.primary }]} onPress={() => navigation.goBack()}>
-						<Text style={[styles.buttonText, { color: '#FFFFFF' }]}>Go Back</Text>
-					</TouchableOpacity>
-				</View>
+			<SafeAreaView style={styles.errorContainer}>
+				<Icon name='alert-circle' size={50} color='#F44336' />
+				<Text style={styles.errorText}>{error}</Text>
+				<TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
+					<Text style={styles.buttonText}>Go Back</Text>
+				</TouchableOpacity>
 			</SafeAreaView>
 		)
 	}
 
-	const unreadCount = notifications.filter(n => !n.read).length
+	const unreadCount = notifications.filter((n: ParentNotification) => !n.read).length
 
 	return (
-		<SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-			{/* Include the realtime notifications component */}
-			<RealtimeScoreNotifications />
+		<SafeAreaView style={styles.container}>
+			{/* Include the notification manager component */}
+			<ParentNotificationManager
+				onNotificationsChanged={updatedNotifications => {
+					// Update local state with all notifications, no limit
+					setNotifications(updatedNotifications)
+					setFilteredNotifications(updatedNotifications)
+				}}
+			/>
 
-			<View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
+			<View style={styles.header}>
 				<TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-					<Icon name='arrow-left' size={24} color={theme.primary} />
+					<Icon name='arrow-left' size={24} color='#4A90E2' />
 				</TouchableOpacity>
 
 				<View style={styles.headerContent}>
-					<Text style={[styles.screenTitle, { color: theme.text }]}>Notifications</Text>
+					<Text style={styles.screenTitle}>Notifications</Text>
 					{unreadCount > 0 && (
-						<View style={[styles.badgeContainer, { backgroundColor: theme.danger }]}>
-							<Text style={[styles.badgeText, { color: '#FFFFFF' }]}>{unreadCount}</Text>
+						<View style={styles.badgeContainer}>
+							<Text style={styles.badgeText}>{unreadCount}</Text>
 						</View>
 					)}
 				</View>
 
 				{unreadCount > 0 && (
 					<TouchableOpacity style={styles.markReadButton} onPress={markAllAsRead}>
-						<Text style={[styles.markReadText, { color: theme.primary }]}>Mark all read</Text>
+						<Text style={styles.markReadText}>Mark all read</Text>
 					</TouchableOpacity>
 				)}
 			</View>
 
 			{/* Search bar */}
-			<View style={[styles.searchContainer, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
-				<Icon name='search' size={18} color={theme.textSecondary} style={styles.searchIcon} />
+			<View style={styles.searchContainer}>
+				<Icon name='search' size={18} color='#666' style={styles.searchIcon} />
 				<TextInput
-					style={[styles.searchInput, { color: theme.text }]}
+					style={styles.searchInput}
 					placeholder='Search notifications...'
-					placeholderTextColor={theme.subtleText}
 					value={searchQuery}
 					onChangeText={setSearchQuery}
 					clearButtonMode='while-editing'
@@ -560,7 +750,6 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
-							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'grade' && { backgroundColor: getNotificationColor('grade') },
 						]}
 						onPress={() => toggleFilter('grade')}
@@ -570,10 +759,7 @@ const ParentNotificationsScreen = () => {
 							size={14}
 							color={activeFilter === 'grade' ? '#FFFFFF' : getNotificationColor('grade')}
 						/>
-						<Text style={[
-							styles.filterText, 
-							{ color: activeFilter === 'grade' ? '#FFFFFF' : theme.textSecondary }
-						]}>
+						<Text style={[styles.filterText, activeFilter === 'grade' && { color: '#FFFFFF' }]}>
 							Grades
 						</Text>
 					</TouchableOpacity>
@@ -581,7 +767,6 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
-							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'attendance' && {
 								backgroundColor: getNotificationColor('attendance'),
 							},
@@ -593,10 +778,9 @@ const ParentNotificationsScreen = () => {
 							size={14}
 							color={activeFilter === 'attendance' ? '#FFFFFF' : getNotificationColor('attendance')}
 						/>
-						<Text style={[
-							styles.filterText, 
-							{ color: activeFilter === 'attendance' ? '#FFFFFF' : theme.textSecondary }
-						]}>
+						<Text
+							style={[styles.filterText, activeFilter === 'attendance' && { color: '#FFFFFF' }]}
+						>
 							Attendance
 						</Text>
 					</TouchableOpacity>
@@ -604,7 +788,6 @@ const ParentNotificationsScreen = () => {
 					<TouchableOpacity
 						style={[
 							styles.filterButton,
-							{ backgroundColor: theme.cardBackground, borderColor: theme.border },
 							activeFilter === 'announcement' && {
 								backgroundColor: getNotificationColor('announcement'),
 							},
@@ -618,10 +801,9 @@ const ParentNotificationsScreen = () => {
 								activeFilter === 'announcement' ? '#FFFFFF' : getNotificationColor('announcement')
 							}
 						/>
-						<Text style={[
-							styles.filterText, 
-							{ color: activeFilter === 'announcement' ? '#FFFFFF' : theme.textSecondary }
-						]}>
+						<Text
+							style={[styles.filterText, activeFilter === 'announcement' && { color: '#FFFFFF' }]}
+						>
 							Announcements
 						</Text>
 					</TouchableOpacity>
@@ -644,13 +826,13 @@ const ParentNotificationsScreen = () => {
 				data={filteredNotifications}
 				renderItem={renderNotificationItem}
 				keyExtractor={item => item.id}
-				contentContainerStyle={[styles.notificationsList, { backgroundColor: theme.background }]}
+				contentContainerStyle={styles.notificationsList}
 				refreshing={refreshing}
 				onRefresh={handleRefresh}
 				ListEmptyComponent={() => (
 					<View style={styles.emptyContainer}>
-						<Icon name='bell-off' size={50} color={theme.subtleText} />
-						<Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+						<Icon name='bell-off' size={50} color='#ccc' />
+						<Text style={styles.emptyText}>
 							{activeFilter || searchQuery
 								? 'No notifications match your filters'
 								: 'No notifications yet'}
@@ -738,8 +920,10 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 12,
 		paddingVertical: 6,
 		borderRadius: 16,
+		backgroundColor: '#FFFFFF',
 		marginRight: 8,
 		borderWidth: 1,
+		borderColor: '#EEEEEE',
 	},
 	clearFilterButton: {
 		backgroundColor: '#F44336',
@@ -747,6 +931,7 @@ const styles = StyleSheet.create({
 	},
 	filterText: {
 		fontSize: 12,
+		color: '#666666',
 		marginLeft: 4,
 	},
 	clearFilterText: {
@@ -876,6 +1061,16 @@ const styles = StyleSheet.create({
 		color: '#999',
 		textAlign: 'center',
 		marginTop: 20,
+	},
+	attendanceNotification: {
+		borderLeftWidth: 4,
+		borderLeftColor: '#F44336',
+		borderWidth: 1,
+		borderColor: '#EEEEEE',
+	},
+	attendanceStatusTag: {
+		fontSize: 14,
+		fontWeight: 'bold',
 	},
 })
 

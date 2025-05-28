@@ -345,60 +345,34 @@ export const fetchParentChildren = async (parentId: string): Promise<ChildData[]
 // Fetch notifications for a parent using announcements table
 export const fetchParentNotifications = async (parentId: string): Promise<ParentNotification[]> => {
 	try {
-		// First get all the parent's children
-		const { data: children, error: childrenError } = await supabase
-			.from('users')
-			.select('id')
-			.eq('parent_id', parentId)
-			.eq('role', 'Student')
-
-		if (childrenError) throw childrenError
-
-		// Get announcements that target either ALL, PARENTS, or Parent
-		const { data, error } = await supabase
+		// Get announcements for ALL or Parents/Parent
+		const { data: announcements, error: announcementsError } = await supabase
 			.from('announcements')
-			.select(
-				`
-        id,
-        title,
-        content,
-        targetAudience,
-        created_by,
-        created_at,
-        isImportant
-      `
-			)
-			.or(`targetAudience.eq.ALL,targetAudience.eq.PARENTS,targetAudience.eq.Parent`)
-			.order('created_at', { ascending: false })
+			.select('*')
+			.or(`targetAudience.eq.ALL,targetAudience.eq.Parents,targetAudience.eq.Parent`)
+			.order('created_at', { ascending: false }) // Sort by created_at for announcements, newest first
+		// No limit here, fetch all announcements
 
-		if (error) throw error
-
-		if (!data || data.length === 0) return []
-
-		// Format the data
-		const notifications: ParentNotification[] = []
-
-		for (const announcement of data) {
-			try {
-				notifications.push({
-					id: announcement.id || '',
-					title: announcement.title || '',
-					message: announcement.content || '',
-					date: announcement.created_at || new Date().toISOString(),
-					type: mapAnnouncementToNotificationType(announcement.targetAudience || ''),
-					read: false, // We'll need to track read status separately
-					relatedStudentId: '', // Use empty string instead of null to match type
-					relatedSubjectId: 0, // Default to 0 since we don't have target_class_id
-				})
-			} catch (e) {
-				console.error('Error processing announcement:', e)
-			}
+		if (announcementsError) {
+			throw announcementsError
 		}
+
+		// Map announcements to notification format
+		const notifications: ParentNotification[] = announcements.map(announcement => ({
+			id: announcement.id.toString(),
+			title: announcement.title || 'Announcement',
+			message: announcement.content || '',
+			date: announcement.created_at || new Date().toISOString(),
+			type: 'announcement',
+			read: false, // Will be updated from AsyncStorage later
+			relatedStudentId: announcement.target_student_id || undefined,
+			relatedSubjectId: announcement.target_subject_id || undefined,
+		}))
 
 		return notifications
 	} catch (error) {
 		console.error('Error fetching parent notifications:', error)
-		throw new Error(handleSupabaseError(error))
+		return []
 	}
 }
 
@@ -893,86 +867,82 @@ export const fetchStudentSubjects = async (studentId: string) => {
 // Fetch grades for a student
 export const fetchStudentGrades = async (studentId: string) => {
 	try {
-		console.log(`Fetching grades for student: ${studentId}`)
-
+		// Get grades for a student and join lesson and subject details
 		const { data, error } = await supabase
 			.from('scores')
 			.select(
 				`
-				id,
-				score,
-				comment,
-				student_id,
-				lesson_id,
-				quarter_id,
-				created_at,
-				lesson:lessons(
-					id,
-					lessonname,
-					date,
-					subjectid,
-					subject:subjects(
-						id,
-						subjectname
-					)
-				),
-				quarter:quarters(
-					id,
-					name
-				)
-			`
+        id,
+        score,
+        created_at,
+        updated_at,
+        student_id,
+        lesson_id,
+        lessons:lesson_id (
+          id,
+          lessonname,
+          subjectid
+        )
+      `
 			)
 			.eq('student_id', studentId)
-			.order('created_at', { ascending: false })
+			.order('updated_at', { ascending: false }) // Sort by updated_at, newest first
+		// No limit, fetch all grades
 
-		if (error) {
-			console.error('Error fetching student grades:', error)
-			throw new Error(handleSupabaseError(error))
-		}
+		if (error) throw error
 
-		console.log(`Found ${data?.length || 0} grades for student`)
+		if (!data || data.length === 0) return []
 
-		// Process and format the data
-		const gradesResult =
-			data?.map(grade => {
-				const lessonData = Array.isArray(grade.lesson)
-					? grade.lesson[0]
-					: (grade.lesson as LessonFromSupabase | null)
-				const subjectData = lessonData?.subject
-				let finalSubjectName = 'Unknown Subject'
-				if (Array.isArray(subjectData)) {
-					finalSubjectName = subjectData[0]?.subjectname || 'Unknown Subject'
-				} else if (subjectData) {
-					finalSubjectName =
-						(subjectData as { subjectname: string }).subjectname || 'Unknown Subject'
+		// Format data with subject names
+		const formattedGrades = await Promise.all(
+			data.map(async grade => {
+				try {
+					// If lessons data not available
+					if (!grade.lessons) {
+						return {
+							id: grade.id,
+							score: grade.score || 0,
+							date: grade.updated_at || grade.created_at || new Date().toISOString(), // Use updated_at for consistent sorting
+							created_at: grade.created_at,
+							updated_at: grade.updated_at,
+							student_id: grade.student_id,
+							lessonId: grade.lesson_id,
+							lessonName: 'Unknown Lesson',
+							subjectId: 0,
+							subjectName: 'Unknown Subject',
+						}
+					}
+
+					// Get subject details
+					const { data: subjectData, error: subjectError } = await supabase
+						.from('subjects')
+						.select('id, subjectname')
+						.eq('id', grade.lessons.subjectid)
+						.single()
+
+					return {
+						id: grade.id,
+						score: grade.score || 0,
+						date: grade.updated_at || grade.created_at || new Date().toISOString(), // Use updated_at for consistent sorting
+						created_at: grade.created_at,
+						updated_at: grade.updated_at,
+						student_id: grade.student_id,
+						lessonId: grade.lesson_id,
+						lessonName: grade.lessons.lessonname || 'Unknown Lesson',
+						subjectId: grade.lessons.subjectid || 0,
+						subjectName: subjectData?.subjectname || 'Unknown Subject',
+					}
+				} catch (e) {
+					console.error('Error processing grade:', e)
+					return null
 				}
+			})
+		)
 
-				const quarterData = Array.isArray(grade.quarter)
-					? grade.quarter[0]
-					: (grade.quarter as QuarterFromSupabase | null)
-
-				return {
-					id: grade.id,
-					score: grade.score,
-					letterGrade: convertScoreToLetterGrade(grade.score || 0),
-					comment: grade.comment,
-					date: grade.created_at,
-					lessonName: lessonData?.lessonname || 'Unknown Lesson',
-					lessonDate: lessonData?.date,
-					subjectId: lessonData?.subjectid,
-					student_id: grade.student_id,
-					lesson_id: grade.lesson_id,
-					quarter_id: grade.quarter_id,
-					subjectName: finalSubjectName,
-					subjectColor: '#4A90E2',
-					quarter: quarterData?.name || 'Unknown Quarter',
-				}
-			}) || []
-
-		return gradesResult
+		return formattedGrades.filter(Boolean) // Filter out null values
 	} catch (error) {
-		console.error('Error in fetchStudentGrades:', error)
-		throw new Error(handleSupabaseError(error))
+		console.error('Error fetching student grades:', error)
+		return []
 	}
 }
 
@@ -2781,5 +2751,121 @@ export const createScoreNotification = async (
 		console.log('Score notification created successfully')
 	} catch (error) {
 		console.error('Error creating score notification:', error)
+	}
+}
+
+// Find the fetchLatestScoreForStudent function and update it to sort by updated_at
+export const fetchLatestScoreForStudent = async (studentId: string) => {
+	try {
+		// Get latest score for a student
+		const { data, error } = await supabase
+			.from('scores')
+			.select(
+				`
+        id,
+        score,
+        updated_at,
+        created_at,
+        student_id,
+        lesson_id,
+        lessons:lesson_id (
+          id,
+          lessonname,
+          subjectid
+        )
+      `
+			)
+			.eq('student_id', studentId)
+			.order('updated_at', { ascending: false }) // Sort by updated_at, newest first
+			.limit(1) // Get only the latest one for the dashboard
+
+		if (error) throw error
+
+		if (!data || data.length === 0) return null
+
+		const score = data[0]
+
+		// Get subject details
+		const { data: subjectData, error: subjectError } = await supabase
+			.from('subjects')
+			.select('id, subjectname')
+			.eq('id', score.lessons?.subjectid)
+			.single()
+
+		if (subjectError) {
+			console.error('Error fetching subject details:', subjectError)
+		}
+
+		return {
+			id: score.id,
+			score: score.score,
+			updated_at: score.updated_at,
+			created_at: score.created_at,
+			student_id: score.student_id,
+			lesson_id: score.lesson_id,
+			lesson: score.lessons?.lessonname || 'Unknown Lesson',
+			subject: subjectData?.subjectname || 'Unknown Subject',
+			subjectId: score.lessons?.subjectid || 0,
+		}
+	} catch (error) {
+		console.error('Error fetching latest score:', error)
+		return null
+	}
+}
+
+// Find the fetchLatestAttendanceForStudent function and update it to sort by noted_at
+export const fetchLatestAttendanceForStudent = async (studentId: string) => {
+	try {
+		// Get latest attendance record for a student
+		const { data, error } = await supabase
+			.from('attendance')
+			.select(
+				`
+        id,
+        status,
+        noted_at,
+        student_id,
+        lesson_id,
+        lessons:lesson_id (
+          id,
+          lessonname,
+          subjectid
+        )
+      `
+			)
+			.eq('student_id', studentId)
+			.order('noted_at', { ascending: false }) // Sort by noted_at, newest first
+			.limit(1) // Get only the latest one for the dashboard
+
+		if (error) throw error
+
+		if (!data || data.length === 0) return null
+
+		const attendance = data[0]
+
+		// Get subject details
+		const { data: subjectData, error: subjectError } = await supabase
+			.from('subjects')
+			.select('id, subjectname')
+			.eq('id', attendance.lessons?.subjectid)
+			.single()
+
+		if (subjectError) {
+			console.error('Error fetching subject details:', subjectError)
+		}
+
+		return {
+			id: attendance.id,
+			status: attendance.status,
+			noted_at: attendance.noted_at || new Date().toISOString(), // Only use noted_at
+			student_id: attendance.student_id,
+			lesson_id: attendance.lesson_id,
+			lessonName: attendance.lessons?.lessonname || 'Unknown Lesson',
+			subject: subjectData?.subjectname || 'Unknown Subject',
+			subjectId: attendance.lessons?.subjectid || 0,
+		}
+	} catch (error) {
+		console.error('Error fetching latest attendance:', error)
+		return null
 	}
 }
